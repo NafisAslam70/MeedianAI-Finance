@@ -7,6 +7,48 @@ import PendingActions from "@/components/dashboard/PendingActions";
 import FeeStructureOverview from "@/components/dashboard/FeeStructureOverview";
 import { Skeleton } from "@/components/ui/skeleton";
 
+interface FinancialStats {
+  totalStudents: number;
+  totalHostellers: number;
+  totalDayScholars: number;
+  monthlyCollection: number;
+  expectedMonthly: number;
+  vanCollection: number;
+  vanStudents: number;
+  collectionGrowth: number;
+  deficit: number;
+}
+
+interface ClassCollection {
+  className: string;
+  collection: number;
+  studentCount: number;
+  color: string;
+}
+
+interface PendingAction {
+  type: string;
+  title: string;
+  description: string;
+  count: number;
+  icon: string;
+  color: string;
+  action?: string;
+}
+
+interface FeeStructureItem {
+  className: string;
+  classCode: string;
+  totalStudents: number;
+  hostellers: number;
+  dayScholars: number;
+  hostellerFee: number;
+  dayScholarFee: number;
+  expectedMonthly: number;
+  actualCollection: number;
+  variance: number;
+}
+
 export default function Dashboard() {
   const { data: dashboardStats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/dashboard/stats"],

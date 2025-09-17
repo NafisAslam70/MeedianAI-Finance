@@ -225,105 +225,188 @@ export default function Payments() {
 
       {/* Payments Table with Tabs */}
       <Card className="finance-card">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-auto">
+        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
+          <CardHeader>
+            <div className="flex items-center justify-between">
               <TabsList>
                 <TabsTrigger value="all" data-testid="tab-all">All Payments</TabsTrigger>
                 <TabsTrigger value="pending" data-testid="tab-pending">Pending</TabsTrigger>
                 <TabsTrigger value="verified" data-testid="tab-verified">Verified</TabsTrigger>
                 <TabsTrigger value="recent" data-testid="tab-recent">Recent</TabsTrigger>
               </TabsList>
-            </Tabs>
-            <div className="flex items-center space-x-4">
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="verified">Verified</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="text"
-                placeholder="Search payments..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-80"
-                data-testid="input-search-payments"
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <TabsContent value={selectedTab} className="mt-0">
-            {!filteredPayments || filteredPayments.length === 0 ? (
-              <div className="flex items-center justify-center h-64 bg-muted/50 rounded-lg">
-                <div className="text-center">
-                  <i className="fas fa-credit-card text-4xl text-muted-foreground mb-3"></i>
-                  <p className="text-muted-foreground">
-                    {searchQuery ? 'No payments found matching your search' : 'No payments found'}
-                  </p>
-                </div>
+              <div className="flex items-center space-x-4">
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="verified">Verified</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="text"
+                  placeholder="Search payments..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-80"
+                  data-testid="input-search-payments"
+                />
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full data-table">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Student</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Class</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Amount</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Method</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Reference</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Status</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredPayments.map((payment: any, index: number) => (
-                      <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-medium text-primary">
-                                {payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <TabsContent value="all" className="mt-0">
+              {!filteredPayments || filteredPayments.length === 0 ? (
+                <div className="flex items-center justify-center h-64 bg-muted/50 rounded-lg">
+                  <div className="text-center">
+                    <i className="fas fa-credit-card text-4xl text-muted-foreground mb-3"></i>
+                    <p className="text-muted-foreground">
+                      {searchQuery ? 'No payments found matching your search' : 'No payments found'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full data-table">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Student</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Class</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Amount</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Method</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Reference</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Status</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPayments.map((payment: any, index: number) => (
+                        <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                                <span className="text-xs font-medium text-primary">
+                                  {payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                                </span>
+                              </div>
+                              <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
+                                {payment.studentName}
                               </span>
                             </div>
-                            <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
-                              {payment.studentName}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
-                          {payment.className}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
-                          {formatCurrency(payment.amount)}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
-                            {payment.paymentMethod?.replace('_', ' ')}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
-                          {payment.referenceNumber || '-'}
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
-                          {formatDate(payment.paymentDate)}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge className={getStatusBadge(payment.status)} data-testid={`badge-status-${index}`}>
-                            {payment.status}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center space-x-2">
-                            {payment.status === 'pending' && (
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
+                            {payment.className}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
+                            {formatCurrency(payment.amount)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
+                              {payment.paymentMethod?.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
+                            {payment.referenceNumber || '-'}
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
+                            {formatDate(payment.paymentDate)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge className={getStatusBadge(payment.status)} data-testid={`badge-status-${index}`}>
+                              {payment.status}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-2">
+                              {payment.status === 'pending' && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleVerifyPayment(payment.id)}
+                                  disabled={verifyMutation.isPending}
+                                  data-testid={`button-verify-payment-${payment.id}`}
+                                >
+                                  <i className="fas fa-check text-secondary"></i>
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" data-testid={`button-view-payment-${payment.id}`}>
+                                <i className="fas fa-eye text-primary"></i>
+                              </Button>
+                              <Button variant="ghost" size="sm" data-testid={`button-edit-payment-${payment.id}`}>
+                                <i className="fas fa-edit text-muted-foreground"></i>
+                              </Button>
+                              <Button variant="ghost" size="sm" data-testid={`button-receipt-payment-${payment.id}`}>
+                                <i className="fas fa-receipt text-accent"></i>
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="pending" className="mt-0">
+              {!filteredPayments || filteredPayments.length === 0 ? (
+                <div className="flex items-center justify-center h-64 bg-muted/50 rounded-lg">
+                  <div className="text-center">
+                    <i className="fas fa-credit-card text-4xl text-muted-foreground mb-3"></i>
+                    <p className="text-muted-foreground">No pending payments found</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full data-table">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Student</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Class</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Amount</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Method</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Reference</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPayments.map((payment: any, index: number) => (
+                        <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                                <span className="text-xs font-medium text-primary">
+                                  {payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                                </span>
+                              </div>
+                              <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
+                                {payment.studentName}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
+                            {payment.className}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
+                            {formatCurrency(payment.amount)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
+                              {payment.paymentMethod?.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
+                            {payment.referenceNumber || '-'}
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
+                            {formatDate(payment.paymentDate)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-2">
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
@@ -333,26 +416,182 @@ export default function Payments() {
                               >
                                 <i className="fas fa-check text-secondary"></i>
                               </Button>
-                            )}
-                            <Button variant="ghost" size="sm" data-testid={`button-view-payment-${payment.id}`}>
-                              <i className="fas fa-eye text-primary"></i>
-                            </Button>
-                            <Button variant="ghost" size="sm" data-testid={`button-edit-payment-${payment.id}`}>
-                              <i className="fas fa-edit text-muted-foreground"></i>
-                            </Button>
-                            <Button variant="ghost" size="sm" data-testid={`button-receipt-payment-${payment.id}`}>
-                              <i className="fas fa-receipt text-accent"></i>
-                            </Button>
-                          </div>
-                        </td>
+                              <Button variant="ghost" size="sm" data-testid={`button-view-payment-${payment.id}`}>
+                                <i className="fas fa-eye text-primary"></i>
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="verified" className="mt-0">
+              {!filteredPayments || filteredPayments.length === 0 ? (
+                <div className="flex items-center justify-center h-64 bg-muted/50 rounded-lg">
+                  <div className="text-center">
+                    <i className="fas fa-credit-card text-4xl text-muted-foreground mb-3"></i>
+                    <p className="text-muted-foreground">No verified payments found</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full data-table">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Student</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Class</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Amount</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Method</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Reference</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </TabsContent>
-        </CardContent>
+                    </thead>
+                    <tbody>
+                      {filteredPayments.map((payment: any, index: number) => (
+                        <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                                <span className="text-xs font-medium text-primary">
+                                  {payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                                </span>
+                              </div>
+                              <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
+                                {payment.studentName}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
+                            {payment.className}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
+                            {formatCurrency(payment.amount)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
+                              {payment.paymentMethod?.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
+                            {payment.referenceNumber || '-'}
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
+                            {formatDate(payment.paymentDate)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-2">
+                              <Button variant="ghost" size="sm" data-testid={`button-view-payment-${payment.id}`}>
+                                <i className="fas fa-eye text-primary"></i>
+                              </Button>
+                              <Button variant="ghost" size="sm" data-testid={`button-receipt-payment-${payment.id}`}>
+                                <i className="fas fa-receipt text-accent"></i>
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="recent" className="mt-0">
+              {!filteredPayments || filteredPayments.length === 0 ? (
+                <div className="flex items-center justify-center h-64 bg-muted/50 rounded-lg">
+                  <div className="text-center">
+                    <i className="fas fa-credit-card text-4xl text-muted-foreground mb-3"></i>
+                    <p className="text-muted-foreground">No recent payments found</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full data-table">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Student</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Class</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Amount</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Method</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Reference</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Status</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPayments.map((payment: any, index: number) => (
+                        <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                                <span className="text-xs font-medium text-primary">
+                                  {payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                                </span>
+                              </div>
+                              <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
+                                {payment.studentName}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
+                            {payment.className}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
+                            {formatCurrency(payment.amount)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
+                              {payment.paymentMethod?.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
+                            {payment.referenceNumber || '-'}
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
+                            {formatDate(payment.paymentDate)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge className={getStatusBadge(payment.status)} data-testid={`badge-status-${index}`}>
+                              {payment.status}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-2">
+                              {payment.status === 'pending' && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleVerifyPayment(payment.id)}
+                                  disabled={verifyMutation.isPending}
+                                  data-testid={`button-verify-payment-${payment.id}`}
+                                >
+                                  <i className="fas fa-check text-secondary"></i>
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" data-testid={`button-view-payment-${payment.id}`}>
+                                <i className="fas fa-eye text-primary"></i>
+                              </Button>
+                              <Button variant="ghost" size="sm" data-testid={`button-edit-payment-${payment.id}`}>
+                                <i className="fas fa-edit text-muted-foreground"></i>
+                              </Button>
+                              <Button variant="ghost" size="sm" data-testid={`button-receipt-payment-${payment.id}`}>
+                                <i className="fas fa-receipt text-accent"></i>
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </TabsContent>
+          </CardContent>
+        </Tabs>
       </Card>
 
       <PaymentForm 
