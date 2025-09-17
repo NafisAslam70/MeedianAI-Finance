@@ -1,0 +1,159 @@
+MEEDIANAI FLOW — COMPREHENSIVE NOTES (living document)
+
+Purpose
+- MeedianAI Flow is a role‑aware, operations‑first school workflow app that encodes the MEED Blueprint into daily rituals (MRIs), tasks, messages, and closures. It supports members, team managers, and admins with clear UX and strong, practical APIs.
+
+Core Principles
+- Ritual over result (Nizam): daily effort and structure drive success.
+- Dual success: worldly competence + spiritual depth.
+- Clarity and brevity in UI copy; quick actions over complex journeys.
+
+Roles & Access
+- Admin: manages team, users, configuration, approvals.
+- Team Manager: assigns tasks/routines, reviews/approves, coordinates ops.
+- Member: tracks MRIs, completes tasks/routines, day open/close.
+
+Navigation (high level)
+- General (dashboard): ambient status, calendar, MRN feed (Meedians in Action).
+- Member Dashboard (shared dashboard UI): segmented tabs: Dashboard, Assigned, Routine, Notes.
+- Team Manager Dashboard: same base plus managerial actions.
+- Admin Dashboard: management utilities + SharedDashboard embed.
+- Key quick launchers:
+  * Towards Greatness (Execute) → Me Right Now (MRN), Together, All MRNs.
+  * Profile Widgets (side sheet) → profile settings, messages, leave, sent history, All Meedians.
+  * MRIs (side sheet) → Current MRN, open MyMRIs page, About MEED.
+
+UI Modules (selected)
+- Me Right Now (MRN): push current focus (assigned, routine, MRI tabs: AMRI/NMRI/RMRI/OMRI, custom). Shows running timer banner for AMRI.
+- Meedians in Action: modal listing “Active Now” vs “Rest and Recover”.
+- MyMRIs page: Today’s MRIs, weekly A/N MRIs, R‑MRIs access, slot details.
+- Routine Tasks View: tracker and close‑day flow (with CloseDay modal for confirmation).
+- Assigned Tasks View: status updates, sprints, logs.
+- Profile page: account settings, whatsapp, image upload, leave, sent messages.
+- All Meedians modal: directory of names/roles; admin numbers hidden; details on click.
+- ChatBox: in‑app DM history, unread counts, mobile friendly; integrated with teamwork.
+- DELU‑GPT (assistant): role‑aware chat; MRN quick intent; TTS/STT; roadmap for actions.
+
+Integrations
+- Twilio WhatsApp (server): direct messages to users with templates (Content SID configurable).
+- Jitsi (8x8/JAAS): Together workspace link via room slug.
+- DeepCalendar: embedded day/blocks + tokenized API for calendar data.
+- WebSocket (custom): notifications for ChatBox (see useSocket).
+
+Environment (selected)
+- DATABASE_URL: Postgres (Neon) connection.
+- NEXTAUTH_SECRET, NEXTAUTH_URL: Auth.js (NextAuth) session handling.
+- NEXT_PUBLIC_API_URL, NEXT_PUBLIC_FRONTEND_URL: app/self references.
+- WEBSOCKET_PORT: custom socket server port.
+- TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER.
+- JAAS_*/NEXT_PUBLIC_JAAS_*: Jitsi/JAAS credentials.
+- DEEPL_API_KEY: Translate helper.
+- OPENAI_API_KEY, OPENAI_CHAT_MODEL, OPENAI_IMAGE_MODEL: DELU‑GPT.
+
+Data Model (selected tables; see lib/schema.js)
+- users: id, name, email, password, whatsapp_number, whatsapp_enabled, role (admin/team_manager/member), team_manager_type, type (residential/non/semi), member_scope (o/i/s), image, deep_calendar_token, immediate_supervisor.
+- daily_slots: id, name, start_time, end_time (slot catalog).
+- daily_slot_assignments: id, slot_id, member_id, class_name, subject.
+- assigned_tasks: id, title, description, created_by, task_type (assigned/routine), deadline, resources.
+- assigned_task_status: task_id, member_id, status, comment, assigned_date, verified_by, pinned, saved_for_later.
+- sprints: task_status_id, title, description, status, verified_by.
+- routine_tasks, routine_task_daily_statuses: member‑routine definitions and daily states.
+- me_right_now_sessions: userId, type (assigned/routine/amri/nmri/rmri/omri/custom), itemId, itemTitle, note, startedAt, endedAt, active.
+- messages + direct whatsapp logs (where applicable).
+
+APIs (member scope; selected)
+- /api/member/meRightNow
+  * action=options: lists MRN/assigned/routine options (amri/nmri/rmri/omri).
+  * action=start: starts a MRN session (auto‑ends previous); blocks AMRI Day Close.
+  * action=stop: stops current MRN.
+  * action=current: returns user’s active MRN (with avatar).
+  * action=feed: returns active MRNs for all users (ETag cache for polling).
+- /api/member/myMRIs
+  * section=today: today’s AMRIs from assigned tasks + today’s NMRIs (slots assigned to user).
+  * section=weekly: weekly grouped A‑MRIs + weekly N‑MRIs.
+- /api/member/assignedTasks: list, sprints, logs; filtered by date/user.
+- /api/member/routine-tasks: routine tasks and their daily status; close‑day hooks.
+- /api/member/users: directory data with role/type/scope/whatsapp (admins’ details post‑filtered in UI where needed).
+- /api/member/profile: CRUD on profile + image upload; password change; image delete.
+- /api/member/meRightNow/journal: per‑day MRN sessions for the user.
+- /api/managersCommon/*: managerial routines, assign tasks, approvals.
+- /api/admin/manageMeedian: master config (slots, calendar), team summaries, utilities.
+- /api/ai/assist: DELU‑GPT endpoint (role‑aware; local intents + OpenAI chat).
+
+Key Flows
+1) Me Right Now (MRN)
+   - Open “Towards Greatness” → My Rituals Right Now, or MRIs side sheet, or Profile widgets.
+   - Select mode: Assigned / Routine / MRI (tabs: AMRI/NMRI/RMRI/OMRI) / Custom.
+   - AMRI: pick MSP/MHCP1/MHCP2 (Day Close visible but disabled). OMRI: MOP1/MOP2/MOP1L/MOP3.
+   - Enter Mission posts session; AMRI shows live banner with elapsed timer and Stop.
+
+2) All MRNs (Meedians in Action)
+   - Button in General Dashboard, or Through “Towards Greatness”.
+   - Modal groups “Active Now” and “Rest and Recover”. Admins can hide self.
+
+3) Routine Tracker & Close Day
+   - In Shared Dashboard → Routine tab shows tracker and “Close Day” modal.
+   - CloseDay collects completed states and a comment; persists to routine daily statuses.
+
+4) Assigned Tasks
+   - View by filters; update status, sprints; logs with optional WhatsApp notifications.
+
+5) Direct Messaging
+   - Managers can send WhatsApp via Twilio with template variables; consolidated log.
+
+6) MyMRIs Page
+   - Today’s rituals; weekly A/N‑MRIs; slot details; R‑MRIs link for role‑based checklists.
+
+Design Choices
+- Segmented tabs for clarity; avoid deep navigation dependency.
+- Modals and side sheets for context preservation.
+- ETag‑driven polling for MRN feed to reduce chatter.
+- Admin numbers hidden in All Meedians directory for privacy.
+
+Security & Auth
+- Auth.js (NextAuth) session-based with role checks in every API route.
+- Manager/admin-only operations guarded server‑side.
+- No secrets exposed to client; templates require env configuration.
+
+Error Handling
+- APIs return explicit JSON errors; UI displays concise, dismissible toasts.
+- Defensive date parsing and slot validation; log abnormal formats.
+
+Performance
+- SWR for data with smart refresh intervals (e.g., MRN feed ~12s).
+- ETag checks and in‑memory caching for MRN feed.
+- Minimal payloads for options & current MRN.
+
+Styling
+- Tailwind + small custom CSS in components for modals/sheets.
+- Consistent gradients and rounded surfaces; light yet distinct accents by action type.
+
+Build & Run
+- Env: copy .env.local.example → .env.local (fill DATABASE_URL, NEXTAUTH_SECRET, …).
+- DB: `npm run dbpush` (drizzle push) after schema changes.
+- Dev: `npm run dev`.
+
+Logging & Observability
+- Console logs for auth issues and API errors in dev.
+- Consider adding server logging dash (pino/next-logger) later.
+
+Roadmap (high level)
+- Enforce scope rules (internal/external/star) on MRN types.
+- AMRI auto‑finish based on schedule mappings; summary record.
+- Expand manager pages for role‑based R‑MRIs (non‑accountant roles).
+- Rich About MEED content (cards, imagery) in MRIs sheet.
+- Integrate more DELU‑GPT “tools” for one‑click actions (start/stop MRN, assign task).
+
+Appendix — Notable Files
+- components/SharedDashboard.jsx — Member/Manager shared screen (tabs, stats, trackers).
+- components/Navbar.jsx — Global nav, sheets (Execute, Managerial, Profile, MRIs).
+- components/MeRightNow.jsx — MRN modal with options, feed, and AMRI banner.
+- components/Profile.jsx — Account management; “Current MRN” widget in sidebar.
+- app/(main)/api/member/myMRIs/route.js — MRIs aggregation endpoint.
+- app/(main)/api/member/meRightNow/route.js — MRN core API.
+- app/(main)/api/ai/assist/route.js — DELU‑GPT endpoint.
+2025-09-12 — Escalations (Managerial) — Product & System Design captured
+- Added a no-code design doc for a two-level escalation workflow with Day-Close pause integration and admin overrides.
+- Document: docs/managerial-escalations.md
+- Status: scoped and paused; implementation to start in a later phase.
+
