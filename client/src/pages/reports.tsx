@@ -249,7 +249,7 @@ export default function Reports() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {classCollections?.slice(0, 5).map((item: any, index: number) => (
+                  {Array.isArray(classCollections) && classCollections.slice(0, 5).map((item: any, index: number) => (
                     <div key={index} className="flex items-center justify-between" data-testid={`class-performance-${index}`}>
                       <div className="flex items-center space-x-3">
                         <div 
