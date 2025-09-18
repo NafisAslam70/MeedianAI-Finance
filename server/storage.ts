@@ -12,6 +12,7 @@ import {
   type InsertUser,
   type Class,
   type Student,
+  type InsertStudent,
   type FeeStructure,
   type InsertFeeStructure,
   type StudentFee,
@@ -36,7 +37,7 @@ export interface IStorage {
   // Students
   getStudents(): Promise<Student[]>;
   getStudent(id: number): Promise<Student | undefined>;
-  createStudent(student: any): Promise<Student>;
+  createStudent(student: InsertStudent): Promise<Student>;
   
   // Classes
   getClasses(): Promise<Class[]>;
@@ -513,4 +514,281 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// In-memory storage implementation with sample data
+export class MemStorage implements IStorage {
+  private users: User[] = [
+    { id: 1, name: "Admin User", email: "admin@school.com", password: "hashed", role: "admin", whatsapp_number: "+1234567890", whatsapp_enabled: true, type: "residential", member_scope: "i_member", image: null, deep_calendar_token: null, immediate_supervisor: null, isTeacher: false, team_manager_type: null }
+  ];
+
+  private classes: Class[] = [
+    { id: 1, name: "Class 1", section: "A", track: "elementary", active: true },
+    { id: 2, name: "Class 2", section: "A", track: "elementary", active: true },
+    { id: 3, name: "Class 3", section: "B", track: "elementary", active: true },
+    { id: 4, name: "Class 4", section: "A", track: "elementary", active: true },
+    { id: 5, name: "Class 5", section: "A", track: "elementary", active: true }
+  ];
+
+  private students: Student[] = [
+    {
+      id: 1,
+      name: "John Doe",
+      admissionNumber: "ADM001",
+      admissionDate: new Date('2024-01-15'),
+      aadharNumber: "123456789012",
+      dateOfBirth: new Date('2010-05-20'),
+      gender: "Male",
+      classId: 1,
+      sectionType: "A",
+      isHosteller: false,
+      transportChosen: true,
+      guardianPhone: "+1234567890",
+      guardianName: "Mr. Doe",
+      guardianWhatsappNumber: "+1234567890",
+      motherName: "Mrs. Doe",
+      address: "123 Main Street, City",
+      bloodGroup: "O+",
+      feeStatus: "Paid",
+      status: "active",
+      accountOpened: true,
+      createdAt: new Date(),
+      notes: []
+    },
+    {
+      id: 2,
+      name: "Jane Smith",
+      admissionNumber: "ADM002",
+      admissionDate: new Date('2024-01-20'),
+      aadharNumber: "987654321098",
+      dateOfBirth: new Date('2011-03-15'),
+      gender: "Female",
+      classId: 2,
+      sectionType: "A",
+      isHosteller: true,
+      transportChosen: false,
+      guardianPhone: "+0987654321",
+      guardianName: "Mr. Smith",
+      guardianWhatsappNumber: "+0987654321",
+      motherName: "Mrs. Smith",
+      address: "456 Oak Avenue, Town",
+      bloodGroup: "A+",
+      feeStatus: "Pending",
+      status: "active",
+      accountOpened: false,
+      createdAt: new Date(),
+      notes: []
+    }
+  ];
+
+  private payments: Payment[] = [
+    {
+      id: 1,
+      studentId: 1,
+      studentFeeId: 1,
+      amount: "5000.00",
+      paymentMethod: "upi",
+      transactionId: "TXN001",
+      paymentDate: new Date(),
+      status: "verified",
+      verifiedBy: 1,
+      verifiedAt: new Date(),
+      remarks: "Monthly fee payment",
+      receiptUrl: null,
+      createdAt: new Date()
+    }
+  ];
+
+  private nextId = {
+    users: 2,
+    classes: 6,
+    students: 3,
+    payments: 2
+  };
+
+  async getUser(id: number): Promise<User | undefined> {
+    return this.users.find(u => u.id === id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return this.users.find(u => u.email === username);
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const newUser: User = {
+      id: this.nextId.users++,
+      ...user,
+      role: user.role || "member",
+      whatsapp_enabled: user.whatsapp_enabled ?? true,
+      type: user.type || "residential",
+      member_scope: user.member_scope || "i_member"
+    };
+    this.users.push(newUser);
+    return newUser;
+  }
+
+  async getStudents(): Promise<Student[]> {
+    return [...this.students];
+  }
+
+  async getStudent(id: number): Promise<Student | undefined> {
+    return this.students.find(s => s.id === id);
+  }
+
+  async createStudent(student: InsertStudent): Promise<Student> {
+    const newStudent: Student = {
+      id: this.nextId.students++,
+      createdAt: new Date(),
+      notes: [],
+      feeStatus: "Pending",
+      status: "active",
+      accountOpened: false,
+      isHosteller: false,
+      transportChosen: false,
+      ...student,
+    };
+    this.students.push(newStudent);
+    return newStudent;
+  }
+
+  async getClasses(): Promise<Class[]> {
+    return [...this.classes];
+  }
+
+  async getFeeStructures(): Promise<FeeStructure[]> {
+    return [];
+  }
+
+  async createFeeStructure(): Promise<FeeStructure> {
+    throw new Error("Not implemented in MemStorage");
+  }
+
+  async getStudentFees(): Promise<StudentFee[]> {
+    return [];
+  }
+
+  async createStudentFee(): Promise<StudentFee> {
+    throw new Error("Not implemented in MemStorage");
+  }
+
+  async getPayments(): Promise<any[]> {
+    return this.payments.map(payment => {
+      const student = this.students.find(s => s.id === payment.studentId);
+      const className = this.classes.find(c => c.id === student?.classId)?.name;
+      return {
+        ...payment,
+        studentName: student?.name || 'Unknown Student',
+        className: className || 'Unknown Class',
+        referenceNumber: payment.transactionId
+      };
+    });
+  }
+
+  async createPayment(): Promise<Payment> {
+    throw new Error("Not implemented in MemStorage");
+  }
+
+  async verifyPayment(): Promise<Payment | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+
+  async getTransportFees(): Promise<TransportFee[]> {
+    return [];
+  }
+
+  async createTransportFee(): Promise<TransportFee> {
+    throw new Error("Not implemented in MemStorage");
+  }
+
+  async getDashboardStats(): Promise<any> {
+    return {
+      totalStudents: this.students.length,
+      activeStudents: this.students.filter(s => s.status === 'active').length,
+      totalClasses: this.classes.length,
+      monthlyCollection: 15000,
+      pendingPayments: 1,
+      totalCollection: 125000
+    };
+  }
+
+  async getCollectionTrend(): Promise<any> {
+    return [
+      { month: "Jan", amount: 12000 },
+      { month: "Feb", amount: 15000 },
+      { month: "Mar", amount: 18000 },
+      { month: "Apr", amount: 16000 },
+      { month: "May", amount: 20000 },
+      { month: "Jun", amount: 22000 }
+    ];
+  }
+
+  async getClassCollections(): Promise<any> {
+    return this.classes.map((cls, index) => ({
+      className: cls.name,
+      collection: (index + 1) * 5000,
+      studentCount: Math.floor(Math.random() * 30) + 10,
+      color: `hsl(var(--chart-${(index % 5) + 1}))`
+    }));
+  }
+
+  async getFeeStructureOverview(): Promise<any> {
+    const items = this.classes.map(cls => ({
+      className: cls.name,
+      classCode: cls.name.slice(-1),
+      totalStudents: Math.floor(Math.random() * 30) + 10,
+      hostellers: Math.floor(Math.random() * 10) + 5,
+      dayScholars: Math.floor(Math.random() * 20) + 10,
+      hostellerFee: 8000,
+      dayScholarFee: 5000,
+      expectedMonthly: Math.floor(Math.random() * 50000) + 30000,
+      actualCollection: Math.floor(Math.random() * 45000) + 25000,
+      variance: Math.floor(Math.random() * 10000) - 5000
+    }));
+    
+    const totals = items.reduce((acc, item) => ({
+      totalStudents: acc.totalStudents + item.totalStudents,
+      expectedMonthly: acc.expectedMonthly + item.expectedMonthly,
+      actualCollection: acc.actualCollection + item.actualCollection,
+      variance: acc.variance + item.variance
+    }), { totalStudents: 0, expectedMonthly: 0, actualCollection: 0, variance: 0 });
+    
+    return { items, totals };
+  }
+
+  async getPendingActions(): Promise<any> {
+    return [
+      {
+        type: 'overdue',
+        title: 'Overdue Payments',
+        description: 'Students with pending monthly fees',
+        count: 3,
+        icon: 'fas fa-exclamation-triangle',
+        color: 'destructive',
+        action: '/payments?filter=overdue'
+      },
+      {
+        type: 'verification',
+        title: 'Payments to Verify',
+        description: 'Require admin verification',
+        count: 2,
+        icon: 'fas fa-clock',
+        color: 'accent',
+        action: '/payments?filter=pending'
+      },
+      {
+        type: 'import',
+        title: 'Excel Import Ready',
+        description: 'New data ready for import',
+        count: 1,
+        icon: 'fas fa-file-excel',
+        color: 'primary',
+        action: '/excel-import'
+      }
+    ];
+  }
+
+  async createExcelImport(): Promise<ExcelImport> {
+    throw new Error("Not implemented in MemStorage");
+  }
+}
+
+// Use MemStorage by default, DatabaseStorage when database is available
+export const storage: IStorage = process.env.USE_DATABASE === 'true' ? new DatabaseStorage() : new MemStorage();

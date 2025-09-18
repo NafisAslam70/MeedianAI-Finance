@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPaymentSchema, insertFeeStructureSchema, insertStudentFeeSchema, insertTransportFeeSchema, insertExcelImportSchema } from "@shared/schema";
+import { insertPaymentSchema, insertFeeStructureSchema, insertStudentFeeSchema, insertTransportFeeSchema, insertExcelImportSchema, insertStudentSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -30,9 +30,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/students", async (req, res) => {
     try {
-      const student = await storage.createStudent(req.body);
+      const validated = insertStudentSchema.parse(req.body);
+      const student = await storage.createStudent(validated);
       res.status(201).json(student);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
       res.status(500).json({ message: "Failed to create student" });
     }
   });
