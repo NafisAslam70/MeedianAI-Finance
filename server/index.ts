@@ -61,10 +61,17 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
+  
+  // Configure server for Autoscale deployment compatibility
+  // Only bind to the specified port without explicit host configuration
+  // This ensures compatibility with Autoscale's single-port requirement
   server.listen(port, () => {
     log(`serving on port ${port}`);
+    log(`Environment: ${app.get("env")}`);
   }).on('error', (err) => {
     console.error('Server failed to start:', err);
+    console.error('Port:', port);
+    console.error('Error details:', err.message);
     process.exit(1);
   });
 })();
