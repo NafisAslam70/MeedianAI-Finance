@@ -51,6 +51,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Database initialization endpoint - Create financial tables
+  app.post("/api/init-database", async (req, res) => {
+    try {
+      await (storage as any).createFinancialTables();
+      res.json({ message: 'Financial tables created successfully' });
+    } catch (error) {
+      console.error('Database initialization error:', error);
+      res.status(500).json({ message: 'Failed to initialize database', error: error.message });
+    }
+  });
+
   // Fee Structures endpoints
   app.get("/api/fee-structures", async (req, res) => {
     try {

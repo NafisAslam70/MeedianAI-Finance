@@ -28,6 +28,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sum, count, sql } from "drizzle-orm";
+import { neon } from '@neondatabase/serverless';
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -90,43 +91,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getStudents(): Promise<Student[]> {
-    const result = await db
-      .select({
-        id: students.id,
-        name: students.name,
-        admissionNumber: students.admissionNumber,
-        admissionDate: students.admissionDate,
-        aadharNumber: students.aadharNumber,
-        dateOfBirth: students.dateOfBirth,
-        gender: students.gender,
-        classId: students.classId,
-        sectionType: students.sectionType,
-        isHosteller: students.isHosteller,
-        transportChosen: students.transportChosen,
-        guardianPhone: students.guardianPhone,
-        guardianName: students.guardianName,
-        guardianWhatsappNumber: students.guardianWhatsappNumber,
-        motherName: students.motherName,
-        address: students.address,
-        bloodGroup: students.bloodGroup,
-        feeStatus: students.feeStatus,
-        status: students.status,
-        accountOpened: students.accountOpened,
-        createdAt: students.createdAt,
-        notes: students.notes,
-        class: {
-          id: classes.id,
-          name: classes.name,
-          section: classes.section,
-          track: classes.track,
-          active: classes.active,
-        }
-      })
-      .from(students)
-      .leftJoin(classes, eq(students.classId, classes.id))
-      .orderBy(students.name);
-    
-    return result;
+    try {
+      // Bypass Drizzle and use raw SQL until schema is synced
+      const sql = neon(process.env.DATABASE_URL!);
+      
+      const result = await sql`
+        SELECT id, name, admission_number as "admissionNumber", admission_date as "admissionDate",
+               aadhar_number as "aadharNumber", date_of_birth as "dateOfBirth", gender,
+               class_id as "classId", section_type as "sectionType", is_hosteller as "isHosteller",
+               transport_chosen as "transportChosen", guardian_phone as "guardianPhone",
+               guardian_name as "guardianName", guardian_whatsapp_number as "guardianWhatsappNumber",
+               mother_name as "motherName", address, blood_group as "bloodGroup",
+               fee_status as "feeStatus", status, account_opened as "accountOpened",
+               created_at as "createdAt", notes
+        FROM students 
+        ORDER BY name
+      `;
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to fetch students:', error.message);
+      throw error;
+    }
   }
 
   async getStudent(id: number): Promise<Student | undefined> {
@@ -146,26 +132,176 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClasses(): Promise<Class[]> {
-    return await db
-      .select()
-      .from(classes)
-      .where(eq(classes.active, true))
-      .orderBy(classes.name);
+    // Bypass Drizzle and use raw SQL until schema is synced
+    const sql = neon(process.env.DATABASE_URL!);
+    
+    const result = await sql`
+      SELECT id, name, section, track, active
+      FROM classes 
+      ORDER BY name
+    `;
+    
+    return result;
+  }
+
+  // Create missing financial tables in the real database
+  async createFinancialTables(): Promise<void> {
+    const sql = neon(process.env.DATABASE_URL!);
+    
+    try {
+      console.log('🔧 Creating financial database tables...');
+      
+      // Create enums if they don't exist
+      await sql`DO $$ BEGIN
+        CREATE TYPE fee_type AS ENUM ('tuition', 'admission', 'examination', 'sports', 'library', 'computer', 'transport', 'hostel', 'miscellaneous');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$`;
+
+      await sql`DO $$ BEGIN  
+        CREATE TYPE payment_method AS ENUM ('cash', 'cheque', 'upi', 'bank_transfer', 'card', 'online');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$`;
+
+      await sql`DO $$ BEGIN
+        CREATE TYPE payment_status AS ENUM ('pending', 'paid', 'failed', 'partial');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$`;
+
+      // Create fee_structures table
+      await sql`CREATE TABLE IF NOT EXISTS fee_structures (
+        id SERIAL PRIMARY KEY,
+        class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+        academic_year VARCHAR(20) NOT NULL,
+        fee_type fee_type NOT NULL,
+        hosteller_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+        day_scholar_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+        description TEXT,
+        is_active BOOLEAN DEFAULT true NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )`;
+
+      await sql`CREATE INDEX IF NOT EXISTS idx_fee_structures_class_year ON fee_structures(class_id, academic_year)`;
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS uniq_fee_structures_class_year_type ON fee_structures(class_id, academic_year, fee_type)`;
+
+      // Create student_fees table
+      await sql`CREATE TABLE IF NOT EXISTS student_fees (
+        id SERIAL PRIMARY KEY,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        fee_structure_id INTEGER NOT NULL REFERENCES fee_structures(id) ON DELETE CASCADE,
+        academic_year VARCHAR(20) NOT NULL,
+        due_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+        paid_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+        pending_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+        due_date TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )`;
+
+      await sql`CREATE INDEX IF NOT EXISTS idx_student_fees_student_year ON student_fees(student_id, academic_year)`;
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS uniq_student_fee_structure ON student_fees(student_id, fee_structure_id, academic_year)`;
+
+      // Create payments table  
+      await sql`CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        student_fee_id INTEGER REFERENCES student_fees(id) ON DELETE SET NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        payment_method payment_method NOT NULL,
+        transaction_id VARCHAR(100),
+        payment_date TIMESTAMP NOT NULL,
+        status payment_status DEFAULT 'pending' NOT NULL,
+        verified_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        verified_at TIMESTAMP,
+        remarks TEXT,
+        receipt_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )`;
+
+      await sql`CREATE INDEX IF NOT EXISTS idx_payments_student_date ON payments(student_id, payment_date)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)`;
+
+      // Create transport_fees table
+      await sql`CREATE TABLE IF NOT EXISTS transport_fees (
+        id SERIAL PRIMARY KEY,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        route_name VARCHAR(100) NOT NULL,
+        monthly_amount DECIMAL(10,2) NOT NULL,
+        academic_year VARCHAR(20) NOT NULL,
+        effective_date DATE NOT NULL,
+        is_active BOOLEAN DEFAULT true NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )`;
+
+      await sql`CREATE INDEX IF NOT EXISTS idx_transport_fees_student_year ON transport_fees(student_id, academic_year)`;
+
+      // Create financial_reports table
+      await sql`CREATE TABLE IF NOT EXISTS financial_reports (
+        id SERIAL PRIMARY KEY,
+        report_type VARCHAR(50) NOT NULL,
+        academic_year VARCHAR(20) NOT NULL,
+        class_id INTEGER REFERENCES classes(id),
+        report_data JSONB NOT NULL,
+        generated_by INTEGER NOT NULL REFERENCES users(id),
+        generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )`;
+
+      await sql`CREATE INDEX IF NOT EXISTS idx_financial_reports_type_year ON financial_reports(report_type, academic_year)`;
+
+      // Create excel_imports table
+      await sql`CREATE TABLE IF NOT EXISTS excel_imports (
+        id SERIAL PRIMARY KEY,
+        file_name VARCHAR(255) NOT NULL,
+        import_type VARCHAR(50) NOT NULL,
+        total_records INTEGER NOT NULL,
+        successful_records INTEGER NOT NULL,
+        failed_records INTEGER NOT NULL,
+        error_log JSONB,
+        imported_by INTEGER NOT NULL REFERENCES users(id),
+        imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )`;
+
+      await sql`CREATE INDEX IF NOT EXISTS idx_excel_imports_by_date ON excel_imports(imported_by, imported_at)`;
+
+      console.log('✅ Financial tables created successfully');
+    } catch (error) {
+      console.error('❌ Failed to create financial tables:', error);
+      throw error;
+    }
   }
 
   async getFeeStructures(academicYear?: string): Promise<FeeStructure[]> {
-    if (academicYear) {
-      return await db
-        .select()
-        .from(feeStructures)
-        .where(and(eq(feeStructures.isActive, true), eq(feeStructures.academicYear, academicYear)))
-        .orderBy(feeStructures.classId, feeStructures.feeType);
-    } else {
-      return await db
-        .select()
-        .from(feeStructures)
-        .where(eq(feeStructures.isActive, true))
-        .orderBy(feeStructures.classId, feeStructures.feeType);
+    try {
+      // Use raw SQL to match the actual database schema
+      const sql = neon(process.env.DATABASE_URL!);
+      
+      if (academicYear) {
+        const result = await sql`
+          SELECT id, class_id as "classId", academic_year as "academicYear", 
+                 fee_type as "feeType", hosteller_amount as "hostellerAmount",
+                 day_scholar_amount as "dayScholarAmount", description,
+                 is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"
+          FROM fee_structures
+          WHERE is_active = true AND academic_year = ${academicYear}
+          ORDER BY class_id, fee_type
+        `;
+        return result;
+      } else {
+        const result = await sql`
+          SELECT id, class_id as "classId", academic_year as "academicYear", 
+                 fee_type as "feeType", hosteller_amount as "hostellerAmount",
+                 day_scholar_amount as "dayScholarAmount", description,
+                 is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"
+          FROM fee_structures
+          WHERE is_active = true
+          ORDER BY class_id, fee_type
+        `;
+        return result;
+      }
+    } catch (error) {
+      console.error('Failed to fetch fee structures:', error.message);
+      throw error;
     }
   }
 
@@ -790,5 +926,5 @@ export class MemStorage implements IStorage {
   }
 }
 
-// Use MemStorage by default, DatabaseStorage when database is available
-export const storage: IStorage = process.env.USE_DATABASE === 'true' ? new DatabaseStorage() : new MemStorage();
+// Switch to your real database with 185 students
+export const storage: IStorage = new DatabaseStorage();
