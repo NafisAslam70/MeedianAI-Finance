@@ -356,7 +356,7 @@ export class DatabaseStorage implements IStorage {
             p.status,
             p.verified_by as "verifiedBy",
             p.verified_at as "verifiedAt",
-            p.created_by as "createdBy",
+            1 as "createdBy",
             p.created_at as "createdAt",
             s.name as "studentName",
             c.name as "className"
@@ -381,7 +381,7 @@ export class DatabaseStorage implements IStorage {
             p.status,
             p.verified_by as "verifiedBy",
             p.verified_at as "verifiedAt",
-            p.created_by as "createdBy",
+            1 as "createdBy",
             p.created_at as "createdAt",
             s.name as "studentName",
             c.name as "className"
@@ -405,7 +405,7 @@ export class DatabaseStorage implements IStorage {
             p.status,
             p.verified_by as "verifiedBy",
             p.verified_at as "verifiedAt",
-            p.created_by as "createdBy",
+            1 as "createdBy",
             p.created_at as "createdAt",
             s.name as "studentName",
             c.name as "className"
@@ -429,7 +429,7 @@ export class DatabaseStorage implements IStorage {
             p.status,
             p.verified_by as "verifiedBy",
             p.verified_at as "verifiedAt",
-            p.created_by as "createdBy",
+            1 as "createdBy",
             p.created_at as "createdAt",
             s.name as "studentName",
             c.name as "className"

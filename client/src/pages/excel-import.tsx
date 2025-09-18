@@ -33,19 +33,20 @@ export default function ExcelImport() {
 
   const importMutation = useMutation({
     mutationFn: async (file: File) => {
+      // Real file upload with FormData
       const formData = new FormData();
       formData.append('file', file);
       
-      // Simulate the actual import process
-      return apiRequest("POST", "/api/excel-import", {
-        fileName: file.name,
-        fileSize: file.size,
-        sheetsProcessed: 15,
-        recordsImported: 150,
-        recordsSkipped: 5,
-        importStatus: 'completed',
-        importedBy: 1, // TODO: Get actual user ID
+      const response = await fetch('/api/excel-import', {
+        method: 'POST',
+        body: formData,
       });
+
+      if (!response.ok) {
+        throw new Error(`Import failed: ${response.statusText}`);
+      }
+
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/excel-imports"] });
