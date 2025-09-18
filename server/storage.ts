@@ -36,6 +36,7 @@ export interface IStorage {
   // Students
   getStudents(): Promise<Student[]>;
   getStudent(id: number): Promise<Student | undefined>;
+  createStudent(student: any): Promise<Student>;
   
   // Classes
   getClasses(): Promise<Class[]>;
@@ -133,6 +134,14 @@ export class DatabaseStorage implements IStorage {
       .from(students)
       .where(eq(students.id, id));
     return student || undefined;
+  }
+
+  async createStudent(studentData: any): Promise<Student> {
+    const [result] = await db
+      .insert(students)
+      .values(studentData)
+      .returning();
+    return result;
   }
 
   async getClasses(): Promise<Class[]> {

@@ -55,7 +55,7 @@ export default function RecentPayments({ payments }: RecentPaymentsProps) {
     return variants[type as keyof typeof variants] || 'bg-muted text-muted-foreground';
   };
 
-  if (!payments || payments.length === 0) {
+  if (!payments || !Array.isArray(payments) || payments.length === 0) {
     return (
       <Card className="finance-card" data-testid="card-recent-payments">
         <CardHeader>
@@ -106,7 +106,7 @@ export default function RecentPayments({ payments }: RecentPaymentsProps) {
               </tr>
             </thead>
             <tbody>
-              {payments.slice(0, 10).map((payment, index) => (
+              {(Array.isArray(payments) ? payments.slice(0, 10) : []).map((payment, index) => (
                 <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
                   <td className="py-3 px-4">
                     <div className="flex items-center space-x-3">

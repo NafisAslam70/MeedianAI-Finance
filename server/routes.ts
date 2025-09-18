@@ -28,6 +28,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/students", async (req, res) => {
+    try {
+      const student = await storage.createStudent(req.body);
+      res.status(201).json(student);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create student" });
+    }
+  });
+
   // Classes endpoint
   app.get("/api/classes", async (req, res) => {
     try {
