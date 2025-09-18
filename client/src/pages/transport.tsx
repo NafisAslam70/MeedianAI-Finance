@@ -93,10 +93,10 @@ export default function Transport() {
     });
   };
 
-  const filteredTransportFees = transportFees?.filter((fee: any) =>
+  const filteredTransportFees = Array.isArray(transportFees) ? transportFees.filter((fee: any) =>
     fee.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     fee.routeName?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ) : [];
 
   if (studentsLoading || feesLoading) {
     return (
@@ -131,10 +131,10 @@ export default function Transport() {
   }
 
   // Calculate summary stats
-  const totalTransportStudents = transportFees?.length || 0;
-  const totalMonthlyRevenue = transportFees?.reduce((sum: number, fee: any) => 
-    sum + parseFloat(fee.monthlyAmount || 0), 0) || 0;
-  const uniqueRoutes = [...new Set(transportFees?.map((fee: any) => fee.routeName) || [])].length;
+  const totalTransportStudents = Array.isArray(transportFees) ? transportFees.length : 0;
+  const totalMonthlyRevenue = Array.isArray(transportFees) ? transportFees.reduce((sum: number, fee: any) => 
+    sum + parseFloat(fee.monthlyAmount || 0), 0) : 0;
+  const uniqueRoutes = Array.isArray(transportFees) ? [...new Set(transportFees.map((fee: any) => fee.routeName))].length : 0;
 
   return (
     <div className="space-y-6">

@@ -258,7 +258,7 @@ export default function FeeManagement() {
         </div>
       </div>
 
-      {!feeStructures || feeStructures.length === 0 ? (
+      {!feeStructures || !Array.isArray(feeStructures) || feeStructures.length === 0 ? (
         <Card className="finance-card">
           <CardContent className="p-12">
             <div className="text-center">
@@ -295,7 +295,7 @@ export default function FeeManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {feeStructures.map((structure: any, index: number) => (
+                  {Array.isArray(feeStructures) && feeStructures.map((structure: any, index: number) => (
                     <tr key={structure.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-fee-structure-${structure.id}`}>
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-3">
