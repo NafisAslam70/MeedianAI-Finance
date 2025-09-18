@@ -171,11 +171,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Transport Fees endpoints
   app.get("/api/transport-fees", async (req, res) => {
     try {
-      console.log('Transport fees route called');
       const academicYear = req.query.academicYear as string;
-      console.log('Academic year:', academicYear);
       const transportFees = await storage.getTransportFees(academicYear);
-      console.log('Transport fees result:', transportFees);
       res.json(transportFees);
     } catch (error) {
       console.error('Transport fees route error:', error);
@@ -247,8 +244,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      // Read and parse the Excel file
-      const workbook = XLSX.readFile(req.file.path);
+      // Read and parse the Excel file from buffer
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
       const sheetNames = workbook.SheetNames;
       
       let importedRecords = 0;
@@ -339,8 +336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         importedBy: 1 // TODO: Get actual user ID from session
       });
 
-      // Clean up uploaded file
-      require('fs').unlinkSync(req.file.path);
+      // No need to clean up - using memory storage
 
       res.status(201).json({
         ...importRecord,

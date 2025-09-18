@@ -337,44 +337,113 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPayments(studentId?: number, limit?: number): Promise<Payment[]> {
-    const baseQuery = db
-      .select({
-        id: payments.id,
-        studentId: payments.studentId,
-        studentFeeId: payments.studentFeeId,
-        amount: payments.amount,
-        paymentMethod: payments.paymentMethod,
-        paymentDate: payments.paymentDate,
-        referenceNumber: payments.referenceNumber,
-        remarks: payments.remarks,
-        status: payments.status,
-        verifiedBy: payments.verifiedBy,
-        verifiedAt: payments.verifiedAt,
-        createdBy: payments.createdBy,
-        createdAt: payments.createdAt,
-        studentName: students.name,
-        className: classes.name,
-      })
-      .from(payments)
-      .leftJoin(students, eq(payments.studentId, students.id))
-      .leftJoin(classes, eq(students.classId, classes.id));
-    
-    if (studentId && limit) {
-      return await baseQuery
-        .where(eq(payments.studentId, studentId))
-        .orderBy(desc(payments.paymentDate))
-        .limit(limit);
-    } else if (studentId) {
-      return await baseQuery
-        .where(eq(payments.studentId, studentId))
-        .orderBy(desc(payments.paymentDate));
-    } else if (limit) {
-      return await baseQuery
-        .orderBy(desc(payments.paymentDate))
-        .limit(limit);
-    } else {
-      return await baseQuery
-        .orderBy(desc(payments.paymentDate));
+    try {
+      // Use raw SQL to avoid schema mismatches
+      const sql = neon(process.env.DATABASE_URL!);
+      
+      let query;
+      if (studentId && limit) {
+        query = sql`
+          SELECT 
+            p.id,
+            p.student_id as "studentId",
+            p.student_fee_id as "studentFeeId",
+            p.amount,
+            p.payment_method as "paymentMethod",
+            p.payment_date as "paymentDate",
+            p.transaction_id as "referenceNumber",
+            p.remarks,
+            p.status,
+            p.verified_by as "verifiedBy",
+            p.verified_at as "verifiedAt",
+            p.created_by as "createdBy",
+            p.created_at as "createdAt",
+            s.name as "studentName",
+            c.name as "className"
+          FROM payments p
+          LEFT JOIN students s ON p.student_id = s.id
+          LEFT JOIN classes c ON s.class_id = c.id
+          WHERE p.student_id = ${studentId}
+          ORDER BY p.payment_date DESC
+          LIMIT ${limit}
+        `;
+      } else if (studentId) {
+        query = sql`
+          SELECT 
+            p.id,
+            p.student_id as "studentId",
+            p.student_fee_id as "studentFeeId",
+            p.amount,
+            p.payment_method as "paymentMethod",
+            p.payment_date as "paymentDate",
+            p.transaction_id as "referenceNumber",
+            p.remarks,
+            p.status,
+            p.verified_by as "verifiedBy",
+            p.verified_at as "verifiedAt",
+            p.created_by as "createdBy",
+            p.created_at as "createdAt",
+            s.name as "studentName",
+            c.name as "className"
+          FROM payments p
+          LEFT JOIN students s ON p.student_id = s.id
+          LEFT JOIN classes c ON s.class_id = c.id
+          WHERE p.student_id = ${studentId}
+          ORDER BY p.payment_date DESC
+        `;
+      } else if (limit) {
+        query = sql`
+          SELECT 
+            p.id,
+            p.student_id as "studentId",
+            p.student_fee_id as "studentFeeId",
+            p.amount,
+            p.payment_method as "paymentMethod",
+            p.payment_date as "paymentDate",
+            p.transaction_id as "referenceNumber",
+            p.remarks,
+            p.status,
+            p.verified_by as "verifiedBy",
+            p.verified_at as "verifiedAt",
+            p.created_by as "createdBy",
+            p.created_at as "createdAt",
+            s.name as "studentName",
+            c.name as "className"
+          FROM payments p
+          LEFT JOIN students s ON p.student_id = s.id
+          LEFT JOIN classes c ON s.class_id = c.id
+          ORDER BY p.payment_date DESC
+          LIMIT ${limit}
+        `;
+      } else {
+        query = sql`
+          SELECT 
+            p.id,
+            p.student_id as "studentId",
+            p.student_fee_id as "studentFeeId",
+            p.amount,
+            p.payment_method as "paymentMethod",
+            p.payment_date as "paymentDate",
+            p.transaction_id as "referenceNumber",
+            p.remarks,
+            p.status,
+            p.verified_by as "verifiedBy",
+            p.verified_at as "verifiedAt",
+            p.created_by as "createdBy",
+            p.created_at as "createdAt",
+            s.name as "studentName",
+            c.name as "className"
+          FROM payments p
+          LEFT JOIN students s ON p.student_id = s.id
+          LEFT JOIN classes c ON s.class_id = c.id
+          ORDER BY p.payment_date DESC
+        `;
+      }
+      
+      return (await query) as Payment[];
+    } catch (error) {
+      console.error('Failed to fetch payments:', error);
+      return [];
     }
   }
 
@@ -401,7 +470,6 @@ export class DatabaseStorage implements IStorage {
 
   async getTransportFees(academicYear?: string): Promise<TransportFee[]> {
     try {
-      console.log('getTransportFees called with academicYear:', academicYear);
       // Use raw SQL to avoid schema mismatches
       const sql = neon(process.env.DATABASE_URL!);
       
