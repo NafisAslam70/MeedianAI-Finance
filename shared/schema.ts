@@ -103,11 +103,15 @@ export const students = Students;
 
 // Fee structure enums
 export const feeTypeEnum = pgEnum("fee_type", [
-  "monthly", 
+  "tuition",
   "admission", 
+  "examination",
+  "sports",
+  "library",
+  "computer",
   "transport", 
-  "supply", 
-  "other"
+  "hostel",
+  "miscellaneous"
 ]);
 
 export const paymentMethodEnum = pgEnum("payment_method", [
@@ -120,8 +124,8 @@ export const paymentMethodEnum = pgEnum("payment_method", [
 
 export const paymentStatusEnum = pgEnum("payment_status", [
   "pending", 
-  "verified", 
-  "rejected", 
+  "paid", 
+  "failed", 
   "partial"
 ]);
 

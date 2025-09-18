@@ -1,8 +1,26 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import multer from "multer";
+import * as XLSX from "xlsx";
 import { storage } from "./storage";
 import { insertPaymentSchema, insertFeeStructureSchema, insertStudentFeeSchema, insertTransportFeeSchema, insertExcelImportSchema, insertStudentSchema } from "@shared/schema";
 import { z } from "zod";
+
+// Configure multer for file uploads
+const upload = multer({
+  dest: 'uploads/',
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+        file.mimetype === 'application/vnd.ms-excel') {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only .xlsx and .xls files are allowed.'));
+    }
+  }
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Students endpoint
@@ -153,10 +171,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Transport Fees endpoints
   app.get("/api/transport-fees", async (req, res) => {
     try {
+      console.log('Transport fees route called');
       const academicYear = req.query.academicYear as string;
+      console.log('Academic year:', academicYear);
       const transportFees = await storage.getTransportFees(academicYear);
+      console.log('Transport fees result:', transportFees);
       res.json(transportFees);
     } catch (error) {
+      console.error('Transport fees route error:', error);
       res.status(500).json({ message: "Failed to fetch transport fees" });
     }
   });
@@ -219,16 +241,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Excel import endpoint
-  app.post("/api/excel-import", async (req, res) => {
+  app.post("/api/excel-import", upload.single('file'), async (req, res) => {
     try {
-      const validatedData = insertExcelImportSchema.parse(req.body);
-      const importRecord = await storage.createExcelImport(validatedData);
-      res.status(201).json(importRecord);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
       }
-      res.status(500).json({ message: "Failed to create excel import" });
+
+      // Read and parse the Excel file
+      const workbook = XLSX.readFile(req.file.path);
+      const sheetNames = workbook.SheetNames;
+      
+      let importedRecords = 0;
+      let skippedRecords = 0;
+      const errors: string[] = [];
+
+      // Process Students sheet if it exists
+      if (sheetNames.includes('Students')) {
+        try {
+          const studentsSheet = workbook.Sheets['Students'];
+          const studentsData = XLSX.utils.sheet_to_json(studentsSheet);
+          
+          for (const [index, row] of studentsData.entries()) {
+            try {
+              const studentData = {
+                name: String(row['Name'] || '').trim(),
+                email: String(row['Email'] || '').trim(),
+                phone: String(row['Phone'] || '').trim(),
+                admissionNumber: String(row['Admission Number'] || '').trim(),
+                classId: Number(row['Class ID']) || 1,
+                guardianName: String(row['Guardian Name'] || '').trim(),
+                guardianPhone: String(row['Guardian Phone'] || '').trim()
+              };
+
+              if (studentData.name && studentData.email) {
+                await storage.createStudent(studentData);
+                importedRecords++;
+              } else {
+                skippedRecords++;
+                errors.push(`Row ${index + 2} in Students: Missing required fields (Name, Email)`);
+              }
+            } catch (error) {
+              skippedRecords++;
+              errors.push(`Row ${index + 2} in Students: ${error.message}`);
+            }
+          }
+        } catch (error) {
+          errors.push(`Failed to process Students sheet: ${error.message}`);
+        }
+      }
+
+      // Process Payments sheet if it exists
+      if (sheetNames.includes('Payments')) {
+        try {
+          const paymentsSheet = workbook.Sheets['Payments'];
+          const paymentsData = XLSX.utils.sheet_to_json(paymentsSheet);
+          
+          for (const [index, row] of paymentsData.entries()) {
+            try {
+              const paymentData = {
+                studentId: Number(row['Student ID']) || 1,
+                amount: Number(row['Amount']) || 0,
+                feeType: String(row['Fee Type'] || 'monthly').toLowerCase(),
+                academicYear: String(row['Academic Year'] || '2023-24'),
+                month: String(row['Month'] || 'January'),
+                paymentMethod: String(row['Payment Method'] || 'cash').toLowerCase(),
+                transactionId: String(row['Transaction ID'] || ''),
+                paymentDate: new Date(row['Payment Date'] || new Date()),
+                remarks: String(row['Remarks'] || '').trim()
+              };
+
+              if (paymentData.amount > 0) {
+                // Create payment using raw SQL to handle schema mismatch
+                await storage.createPayment(paymentData);
+                importedRecords++;
+              } else {
+                skippedRecords++;
+                errors.push(`Row ${index + 2} in Payments: Invalid amount`);
+              }
+            } catch (error) {
+              skippedRecords++;
+              errors.push(`Row ${index + 2} in Payments: ${error.message}`);
+            }
+          }
+        } catch (error) {
+          errors.push(`Failed to process Payments sheet: ${error.message}`);
+        }
+      }
+
+      // Create import record
+      const importRecord = await storage.createExcelImport({
+        fileName: req.file.originalname,
+        importType: 'bulk_data',
+        totalRecords: importedRecords + skippedRecords,
+        successfulRecords: importedRecords,
+        failedRecords: skippedRecords,
+        errorLog: errors.length > 0 ? { errors } : null,
+        importedBy: 1 // TODO: Get actual user ID from session
+      });
+
+      // Clean up uploaded file
+      require('fs').unlinkSync(req.file.path);
+
+      res.status(201).json({
+        ...importRecord,
+        message: `Import completed: ${importedRecords} records imported, ${skippedRecords} skipped`,
+        sheetsProcessed: sheetNames.length,
+        recordsImported: importedRecords,
+        recordsSkipped: skippedRecords,
+        importStatus: errors.length === 0 ? 'completed' : 'completed_with_errors'
+      });
+
+    } catch (error) {
+      console.error('Excel import error:', error);
+      
+      // Clean up file if it exists
+      if (req.file) {
+        try {
+          require('fs').unlinkSync(req.file.path);
+        } catch (cleanupError) {
+          console.error('Failed to clean up uploaded file:', cleanupError);
+        }
+      }
+      
+      res.status(500).json({ 
+        message: "Failed to process Excel file", 
+        error: error.message 
+      });
     }
   });
 

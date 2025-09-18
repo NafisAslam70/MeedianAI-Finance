@@ -390,7 +390,7 @@ export class DatabaseStorage implements IStorage {
     const [result] = await db
       .update(payments)
       .set({ 
-        status: 'verified', 
+        status: 'paid', 
         verifiedBy, 
         verifiedAt: new Date() 
       })
@@ -400,32 +400,55 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTransportFees(academicYear?: string): Promise<TransportFee[]> {
-    const baseQuery = db
-      .select({
-        id: transportFees.id,
-        studentId: transportFees.studentId,
-        routeName: transportFees.routeName,
-        monthlyAmount: transportFees.monthlyAmount,
-        academicYear: transportFees.academicYear,
-        startDate: transportFees.startDate,
-        endDate: transportFees.endDate,
-        isActive: transportFees.isActive,
-        createdAt: transportFees.createdAt,
-        studentName: students.name,
-        className: classes.name,
-      })
-      .from(transportFees)
-      .leftJoin(students, eq(transportFees.studentId, students.id))
-      .leftJoin(classes, eq(students.classId, classes.id));
-    
-    if (academicYear) {
-      return await baseQuery
-        .where(and(eq(transportFees.isActive, true), eq(transportFees.academicYear, academicYear)))
-        .orderBy(transportFees.routeName, students.name);
-    } else {
-      return await baseQuery
-        .where(eq(transportFees.isActive, true))
-        .orderBy(transportFees.routeName, students.name);
+    try {
+      console.log('getTransportFees called with academicYear:', academicYear);
+      // Use raw SQL to avoid schema mismatches
+      const sql = neon(process.env.DATABASE_URL!);
+      
+      if (academicYear) {
+        const result = await sql`
+          SELECT 
+            tf.id,
+            tf.student_id as "studentId",
+            tf.route_name as "routeName", 
+            tf.monthly_amount as "monthlyAmount",
+            tf.academic_year as "academicYear",
+            tf.effective_date as "effectiveDate",
+            tf.is_active as "isActive",
+            tf.created_at as "createdAt",
+            s.name as "studentName",
+            c.name as "className"
+          FROM transport_fees tf
+          LEFT JOIN students s ON tf.student_id = s.id
+          LEFT JOIN classes c ON s.class_id = c.id
+          WHERE tf.is_active = true AND tf.academic_year = ${academicYear}
+          ORDER BY tf.route_name, s.name
+        `;
+        return result as TransportFee[];
+      } else {
+        const result = await sql`
+          SELECT 
+            tf.id,
+            tf.student_id as "studentId",
+            tf.route_name as "routeName",
+            tf.monthly_amount as "monthlyAmount", 
+            tf.academic_year as "academicYear",
+            tf.effective_date as "effectiveDate",
+            tf.is_active as "isActive",
+            tf.created_at as "createdAt",
+            s.name as "studentName",
+            c.name as "className"
+          FROM transport_fees tf
+          LEFT JOIN students s ON tf.student_id = s.id
+          LEFT JOIN classes c ON s.class_id = c.id
+          WHERE tf.is_active = true
+          ORDER BY tf.route_name, s.name
+        `;
+        return result as TransportFee[];
+      }
+    } catch (error) {
+      console.error('Failed to fetch transport fees:', error);
+      return [];
     }
   }
 
@@ -456,7 +479,7 @@ export class DatabaseStorage implements IStorage {
       const [collectionResult] = await sql`
         SELECT COALESCE(SUM(amount), 0) as "monthlyCollection"
         FROM payments 
-        WHERE status = 'verified'
+        WHERE status = 'paid'
           AND payment_date >= date_trunc('month', CURRENT_DATE)
           AND payment_date < date_trunc('month', CURRENT_DATE) + interval '1 month'
       `;
@@ -468,7 +491,7 @@ export class DatabaseStorage implements IStorage {
           COUNT(DISTINCT p.student_id) as "vanStudents"
         FROM payments p
         LEFT JOIN students s ON p.student_id = s.id
-        WHERE p.status = 'verified'
+        WHERE p.status = 'paid'
           AND s.transport_chosen = true
           AND p.payment_date >= date_trunc('month', CURRENT_DATE)
           AND p.payment_date < date_trunc('month', CURRENT_DATE) + interval '1 month'
@@ -520,7 +543,7 @@ export class DatabaseStorage implements IStorage {
           COUNT(DISTINCT s.id) as "studentCount"
         FROM classes c
         LEFT JOIN students s ON c.id = s.class_id
-        LEFT JOIN payments p ON s.id = p.student_id AND p.status = 'verified'
+        LEFT JOIN payments p ON s.id = p.student_id AND p.status = 'paid'
         WHERE c.active = true
         GROUP BY c.id, c.name
         ORDER BY COALESCE(SUM(p.amount), 0) DESC
@@ -560,7 +583,7 @@ export class DatabaseStorage implements IStorage {
           AND fs.fee_type = 'tuition' 
           AND fs.academic_year = ${academicYear}
           AND fs.is_active = true
-        LEFT JOIN payments p ON s.id = p.student_id AND p.status = 'verified'
+        LEFT JOIN payments p ON s.id = p.student_id AND p.status = 'paid'
         WHERE c.active = true
         GROUP BY c.id, c.name, fs.hosteller_amount, fs.day_scholar_amount
         ORDER BY c.name
