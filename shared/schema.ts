@@ -320,6 +320,11 @@ export const insertPaymentSchema = createInsertSchema(payments).omit({
   verifiedAt: true,
 });
 
+export const insertStudentSchema = createInsertSchema(students).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertTransportFeeSchema = createInsertSchema(transportFees).omit({
   id: true,
   createdAt: true,
@@ -340,6 +345,7 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Class = typeof classes.$inferSelect;
 export type Student = typeof students.$inferSelect;
+export type InsertStudent = z.infer<typeof insertStudentSchema>;
 export type FeeStructure = typeof feeStructures.$inferSelect;
 export type InsertFeeStructure = z.infer<typeof insertFeeStructureSchema>;
 export type StudentFee = typeof studentFees.$inferSelect;

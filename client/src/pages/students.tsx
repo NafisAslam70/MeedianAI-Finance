@@ -1,17 +1,78 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { insertStudentSchema, type InsertStudent } from "../../../shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
 
 export default function Students() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const { data: students, isLoading } = useQuery({
     queryKey: ["/api/students"],
   });
+
+  const { data: classes } = useQuery({
+    queryKey: ["/api/classes"],
+  });
+
+  const createStudentMutation = useMutation({
+    mutationFn: (data: InsertStudent) => apiRequest('POST', '/api/students', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/students'] });
+      setIsDialogOpen(false);
+      form.reset();
+      toast({
+        title: "Success",
+        description: "Student added successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add student",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const formSchema = insertStudentSchema.extend({
+    classId: z.number().min(1, "Please select a class"),
+  });
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      admissionNumber: undefined,
+      classId: 0,
+      isHosteller: false,
+      transportChosen: false,
+      guardianName: undefined,
+      guardianPhone: undefined,
+      gender: undefined,
+      address: undefined,
+      feeStatus: "Pending",
+      status: "active",
+    },
+  });
+
+  const onSubmit = (data: z.infer<typeof formSchema>) => {
+    createStudentMutation.mutate(data);
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -41,7 +102,7 @@ export default function Students() {
     return variants[status as keyof typeof variants] || 'bg-muted text-muted-foreground';
   };
 
-  const filteredStudents = students?.filter((student: any) =>
+  const filteredStudents = (Array.isArray(students) ? students : [])?.filter((student: any) =>
     student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     student.admissionNumber?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -84,10 +145,189 @@ export default function Students() {
           <h2 className="text-2xl font-bold text-foreground" data-testid="text-page-title">Student Management</h2>
           <p className="text-muted-foreground">Manage student records and fee information</p>
         </div>
-        <Button className="bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-add-student">
-          <i className="fas fa-plus mr-2"></i>
-          Add Student
-        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-add-student">
+              <i className="fas fa-plus mr-2"></i>
+              Add Student
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add New Student</DialogTitle>
+              <DialogDescription>
+                Fill in the student information to add them to the system.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Student Name *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter student name" {...field} data-testid="input-student-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="admissionNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Admission Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter admission number" {...field} data-testid="input-admission-number" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="classId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Class *</FormLabel>
+                        <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()} data-testid="select-class">
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a class" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {Array.isArray(classes) && classes.map((cls: any) => (
+                              <SelectItem key={cls.id} value={cls.id.toString()}>
+                                {cls.name} {cls.section ? `- ${cls.section}` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Gender</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} data-testid="select-gender">
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select gender" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="guardianName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Guardian Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter guardian name" {...field} data-testid="input-guardian-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="guardianPhone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Guardian Phone</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter guardian phone" {...field} data-testid="input-guardian-phone" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter student address" {...field} data-testid="input-address" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex space-x-6">
+                  <FormField
+                    control={form.control}
+                    name="isHosteller"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="checkbox-hosteller"
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>Hosteller</FormLabel>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="transportChosen"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="checkbox-transport"
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>Transport Required</FormLabel>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} data-testid="button-cancel-student">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={createStudentMutation.isPending} data-testid="button-submit-student">
+                    {createStudentMutation.isPending ? 'Adding...' : 'Add Student'}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card className="finance-card">
