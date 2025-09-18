@@ -83,7 +83,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .insert(users)
       .values(insertUser)
-      .returning();
+      .returning() as User[];
     return result[0];
   }
 
@@ -144,15 +144,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getFeeStructures(academicYear?: string): Promise<FeeStructure[]> {
-    let query = db.select().from(feeStructures);
-    
     if (academicYear) {
-      query = query.where(and(eq(feeStructures.isActive, true), eq(feeStructures.academicYear, academicYear)));
+      return await db
+        .select()
+        .from(feeStructures)
+        .where(and(eq(feeStructures.isActive, true), eq(feeStructures.academicYear, academicYear)))
+        .orderBy(feeStructures.classId, feeStructures.feeType);
     } else {
-      query = query.where(eq(feeStructures.isActive, true));
+      return await db
+        .select()
+        .from(feeStructures)
+        .where(eq(feeStructures.isActive, true))
+        .orderBy(feeStructures.classId, feeStructures.feeType);
     }
-    
-    return await query.orderBy(feeStructures.classId, feeStructures.feeType);
   }
 
   async createFeeStructure(feeStructure: InsertFeeStructure): Promise<FeeStructure> {
@@ -164,13 +168,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getStudentFees(studentId?: number, classId?: number): Promise<StudentFee[]> {
-    let query = db.select().from(studentFees);
-    
     if (studentId) {
-      query = query.where(eq(studentFees.studentId, studentId));
+      return await db
+        .select()
+        .from(studentFees)
+        .where(eq(studentFees.studentId, studentId))
+        .orderBy(desc(studentFees.createdAt));
+    } else {
+      return await db
+        .select()
+        .from(studentFees)
+        .orderBy(desc(studentFees.createdAt));
     }
-    
-    return await query.orderBy(desc(studentFees.createdAt));
   }
 
   async createStudentFee(studentFee: InsertStudentFee): Promise<StudentFee> {
@@ -182,7 +191,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPayments(studentId?: number, limit?: number): Promise<Payment[]> {
-    let query = db
+    const baseQuery = db
       .select({
         id: payments.id,
         studentId: payments.studentId,
@@ -204,17 +213,23 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(students, eq(payments.studentId, students.id))
       .leftJoin(classes, eq(students.classId, classes.id));
     
-    if (studentId) {
-      query = query.where(eq(payments.studentId, studentId));
+    if (studentId && limit) {
+      return await baseQuery
+        .where(eq(payments.studentId, studentId))
+        .orderBy(desc(payments.paymentDate))
+        .limit(limit);
+    } else if (studentId) {
+      return await baseQuery
+        .where(eq(payments.studentId, studentId))
+        .orderBy(desc(payments.paymentDate));
+    } else if (limit) {
+      return await baseQuery
+        .orderBy(desc(payments.paymentDate))
+        .limit(limit);
+    } else {
+      return await baseQuery
+        .orderBy(desc(payments.paymentDate));
     }
-    
-    query = query.orderBy(desc(payments.paymentDate));
-    
-    if (limit) {
-      query = query.limit(limit);
-    }
-    
-    return await query;
   }
 
   async createPayment(payment: InsertPayment): Promise<Payment> {
@@ -239,7 +254,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTransportFees(academicYear?: string): Promise<TransportFee[]> {
-    let query = db
+    const baseQuery = db
       .select({
         id: transportFees.id,
         studentId: transportFees.studentId,
@@ -258,12 +273,14 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(classes, eq(students.classId, classes.id));
     
     if (academicYear) {
-      query = query.where(and(eq(transportFees.isActive, true), eq(transportFees.academicYear, academicYear)));
+      return await baseQuery
+        .where(and(eq(transportFees.isActive, true), eq(transportFees.academicYear, academicYear)))
+        .orderBy(transportFees.routeName, students.name);
     } else {
-      query = query.where(eq(transportFees.isActive, true));
+      return await baseQuery
+        .where(eq(transportFees.isActive, true))
+        .orderBy(transportFees.routeName, students.name);
     }
-    
-    return await query.orderBy(transportFees.routeName, students.name);
   }
 
   async createTransportFee(transportFee: InsertTransportFee): Promise<TransportFee> {
