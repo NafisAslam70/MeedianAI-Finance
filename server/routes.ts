@@ -257,76 +257,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let skippedRecords = 0;
       const errors: string[] = [];
 
-      // Process Students sheet if it exists
-      if (sheetNames.includes('Students')) {
-        try {
-          const studentsSheet = workbook.Sheets['Students'];
-          const studentsData = XLSX.utils.sheet_to_json(studentsSheet);
-          
-          for (const [index, row] of studentsData.entries()) {
-            try {
-              const studentData = {
-                name: String(row['Name'] || '').trim(),
-                email: String(row['Email'] || '').trim(),
-                phone: String(row['Phone'] || '').trim(),
-                admissionNumber: String(row['Admission Number'] || '').trim(),
-                classId: Number(row['Class ID']) || 1,
-                guardianName: String(row['Guardian Name'] || '').trim(),
-                guardianPhone: String(row['Guardian Phone'] || '').trim()
-              };
-
-              if (studentData.name && studentData.email) {
-                await storage.createStudent(studentData);
-                importedRecords++;
-              } else {
+      // Debug: Log all available sheet names
+      console.log('Available sheets:', sheetNames);
+      
+      // Process class-wise sheets based on actual Excel file structure
+      const classSheets = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'Nur', 'LKG', 'UKG'];
+      const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+      
+      for (const className of classSheets) {
+        if (sheetNames.includes(className)) {
+          console.log(`Processing sheet: ${className}`);
+          try {
+            const classSheet = workbook.Sheets[className];
+            const rawData = XLSX.utils.sheet_to_json(classSheet, {header: 1});
+            
+            // Find student data rows (starting from row index 3, after headers)
+            for (let rowIndex = 3; rowIndex < rawData.length; rowIndex++) {
+              const row = rawData[rowIndex];
+              if (!row || !row[0] || !row[1]) continue; // Skip empty rows
+              
+              try {
+                const ledgerNo = row[0];
+                const studentName = String(row[1] || '').trim();
+                const fatherName = String(row[2] || '').trim();
+                const phoneNo = String(row[3] || '').trim();
+                const admissionType = String(row[4] || '').trim();
+                
+                if (!studentName) continue; // Skip if no student name
+                
+                // Process monthly fee payments (columns 5-16 for Apr-Mar)
+                for (let monthIndex = 0; monthIndex < months.length; monthIndex++) {
+                  const monthValue = row[5 + monthIndex];
+                  if (monthValue && typeof monthValue === 'number' && monthValue > 0) {
+                    try {
+                      // Calculate proper academic year dates
+                      const academicYear = '2024-25';
+                      let paymentYear = 2024;
+                      let paymentMonth = monthIndex + 4; // Apr=4, May=5, etc.
+                      
+                      // Handle academic year transition (Jan-Mar are in next calendar year)
+                      if (monthIndex >= 9) { // Jan=9, Feb=10, Mar=11 in our months array
+                        paymentYear = 2025;
+                        paymentMonth = monthIndex - 8; // Jan=1, Feb=2, Mar=3
+                      }
+                      
+                      // Create a safe student ID using ledger number if available, otherwise use a unique identifier
+                      // This ensures payments can be tracked even if student records don't exist yet
+                      const studentId = ledgerNo || `excel-${className}-${rowIndex}`;
+                      
+                      // Check for duplicate transaction to prevent re-imports
+                      const duplicateCheck = `${academicYear}-${className}-${studentId}-${months[monthIndex]}`;
+                      // For now, we'll process all - deduplication can be added later
+                      
+                      const paymentData = {
+                        studentId: studentId,
+                        amount: monthValue.toString(),
+                        paymentMethod: 'cash',
+                        transactionId: duplicateCheck,
+                        paymentDate: new Date(paymentYear, paymentMonth - 1, 1), // Proper date construction
+                        status: 'paid',
+                        remarks: `Monthly fee for ${studentName} (${className}) - ${months[monthIndex]} ${academicYear}`,
+                        studentName,
+                        className,
+                        month: months[monthIndex],
+                        academicYear,
+                        admissionType
+                      };
+                      
+                      // Create actual payment record in database
+                      await storage.createPayment(paymentData);
+                      importedRecords++;
+                      
+                    } catch (error) {
+                      skippedRecords++;
+                      errors.push(`${className} Row ${rowIndex + 1} ${months[monthIndex]}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }
+                }
+              } catch (error) {
                 skippedRecords++;
-                errors.push(`Row ${index + 2} in Students: Missing required fields (Name, Email)`);
+                errors.push(`${className} Row ${rowIndex + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
               }
-            } catch (error) {
-              skippedRecords++;
-              errors.push(`Row ${index + 2} in Students: ${error.message}`);
             }
+          } catch (error) {
+            errors.push(`Failed to process ${className} sheet: ${error instanceof Error ? error.message : 'Unknown error'}`);
           }
-        } catch (error) {
-          errors.push(`Failed to process Students sheet: ${error.message}`);
-        }
-      }
-
-      // Process Payments sheet if it exists
-      if (sheetNames.includes('Payments')) {
-        try {
-          const paymentsSheet = workbook.Sheets['Payments'];
-          const paymentsData = XLSX.utils.sheet_to_json(paymentsSheet);
-          
-          for (const [index, row] of paymentsData.entries()) {
-            try {
-              const paymentData = {
-                studentId: Number(row['Student ID']) || 1,
-                amount: Number(row['Amount']) || 0,
-                feeType: String(row['Fee Type'] || 'monthly').toLowerCase(),
-                academicYear: String(row['Academic Year'] || '2023-24'),
-                month: String(row['Month'] || 'January'),
-                paymentMethod: String(row['Payment Method'] || 'cash').toLowerCase(),
-                transactionId: String(row['Transaction ID'] || ''),
-                paymentDate: new Date(row['Payment Date'] || new Date()),
-                remarks: String(row['Remarks'] || '').trim()
-              };
-
-              if (paymentData.amount > 0) {
-                // Create payment using raw SQL to handle schema mismatch
-                await storage.createPayment(paymentData);
-                importedRecords++;
-              } else {
-                skippedRecords++;
-                errors.push(`Row ${index + 2} in Payments: Invalid amount`);
-              }
-            } catch (error) {
-              skippedRecords++;
-              errors.push(`Row ${index + 2} in Payments: ${error.message}`);
-            }
-          }
-        } catch (error) {
-          errors.push(`Failed to process Payments sheet: ${error.message}`);
         }
       }
 
@@ -341,7 +356,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recordsImported: importedRecords,
         recordsSkipped: skippedRecords,
         importStatus: errors.length === 0 ? 'completed' : 'completed_with_errors',
-        errors: errors.length > 0 ? errors : null
+        errors: errors.length > 0 ? errors : null,
+        availableSheets: sheetNames,
+        lookingForSheets: classSheets
       });
 
     } catch (error) {
