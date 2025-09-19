@@ -108,9 +108,9 @@ export class DatabaseStorage implements IStorage {
         ORDER BY name
       `;
       
-      return result;
+      return result as Student[];
     } catch (error) {
-      console.error('Failed to fetch students:', error.message);
+      console.error('Failed to fetch students:', error instanceof Error ? error.message : 'Unknown error');
       throw error;
     }
   }
@@ -141,7 +141,7 @@ export class DatabaseStorage implements IStorage {
       ORDER BY name
     `;
     
-    return result;
+    return result as Class[];
   }
 
   // Create missing financial tables in the real database
@@ -286,7 +286,7 @@ export class DatabaseStorage implements IStorage {
           WHERE is_active = true AND academic_year = ${academicYear}
           ORDER BY class_id, fee_type
         `;
-        return result;
+        return result as FeeStructure[];
       } else {
         const result = await sql`
           SELECT id, class_id as "classId", academic_year as "academicYear", 
@@ -297,10 +297,10 @@ export class DatabaseStorage implements IStorage {
           WHERE is_active = true
           ORDER BY class_id, fee_type
         `;
-        return result;
+        return result as FeeStructure[];
       }
     } catch (error) {
-      console.error('Failed to fetch fee structures:', error.message);
+      console.error('Failed to fetch fee structures:', error instanceof Error ? error.message : 'Unknown error');
       throw error;
     }
   }
@@ -842,7 +842,7 @@ export class MemStorage implements IStorage {
       paymentMethod: "upi",
       transactionId: "TXN001",
       paymentDate: new Date(),
-      status: "verified",
+      status: "paid",
       verifiedBy: 1,
       verifiedAt: new Date(),
       remarks: "Monthly fee payment",
@@ -898,6 +898,18 @@ export class MemStorage implements IStorage {
       isHosteller: false,
       transportChosen: false,
       ...student,
+      admissionNumber: student.admissionNumber ?? null,
+      admissionDate: student.admissionDate ?? null,
+      aadharNumber: student.aadharNumber ?? null,
+      dateOfBirth: student.dateOfBirth ?? null,
+      gender: student.gender ?? null,
+      sectionType: student.sectionType ?? null,
+      guardianPhone: student.guardianPhone ?? null,
+      guardianName: student.guardianName ?? null,
+      guardianWhatsappNumber: student.guardianWhatsappNumber ?? null,
+      motherName: student.motherName ?? null,
+      address: student.address ?? null,
+      bloodGroup: student.bloodGroup ?? null,
     };
     this.students.push(newStudent);
     return newStudent;
