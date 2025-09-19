@@ -8,13 +8,22 @@ import { z } from "zod";
 
 // Configure multer for file uploads
 const upload = multer({
-  dest: 'uploads/',
+  storage: multer.memoryStorage(), // Use memory storage for direct buffer access
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-        file.mimetype === 'application/vnd.ms-excel') {
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/octet-stream'
+    ];
+    const allowedExtensions = ['.xlsx', '.xls'];
+    const hasValidExtension = allowedExtensions.some(ext => 
+      file.originalname.toLowerCase().endsWith(ext)
+    );
+    
+    if (allowedTypes.includes(file.mimetype) || hasValidExtension) {
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only .xlsx and .xls files are allowed.'));
