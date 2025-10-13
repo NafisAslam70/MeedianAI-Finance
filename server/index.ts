@@ -1,3 +1,6 @@
+import path from 'node:path';
+import dotenv from 'dotenv';
+dotenv.config({ path: path.resolve(process.cwd(), '../.env.local') });
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";

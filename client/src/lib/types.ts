@@ -1,5 +1,16 @@
 // Common types for MeedianAI-Finances application
 
+export interface AcademicYear {
+  code: string;
+  name: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  isActive: boolean;
+  isCurrent: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -45,6 +56,7 @@ export interface Student {
   feeStatus: string;
   status: string;
   accountOpened: boolean;
+  academicYear?: string | null;
   createdAt?: string;
   notes?: string;
   class?: Class;
@@ -53,7 +65,7 @@ export interface Student {
 export interface FeeStructure {
   id: number;
   classId: number;
-  academicYear: string;
+  academicYear?: string | null;
   feeType: 'monthly' | 'admission' | 'transport' | 'supply' | 'other';
   hostellerAmount: string;
   dayScholarAmount: string;
@@ -83,10 +95,12 @@ export interface Payment {
   id: number;
   studentId: number;
   studentFeeId?: number;
+  academicYear?: string | null;
   amount: string;
-  paymentMethod: 'cash' | 'upi' | 'bank_transfer' | 'cheque' | 'online';
+  paymentMethod: 'cash' | 'upi' | 'bank_transfer' | 'bank' | 'cheque' | 'online';
   paymentDate: string;
   referenceNumber?: string;
+  transactionId?: string;
   remarks?: string;
   status: 'pending' | 'verified' | 'rejected' | 'partial';
   verifiedBy?: number;
@@ -101,12 +115,92 @@ export interface Payment {
   verifiedByUser?: User;
 }
 
+export type DueStatus = 'due' | 'partial' | 'paid' | string;
+
+export interface StudentFinanceDue {
+  id: number;
+  dueType: string;
+  itemType: string;
+  label: string;
+  dueMonth?: string | null;
+  amount: number;
+  paidAmount: number;
+  balance: number;
+  status: DueStatus;
+  notes?: string | null;
+}
+
+export interface StudentFinanceSummary {
+  student: {
+    id: number;
+    name: string;
+    className?: string | null;
+    admissionNumber?: string | null;
+    ledgerNumber?: string | null;
+    isHosteller?: boolean | null;
+    guardianName?: string | null;
+    guardianPhone?: string | null;
+  };
+  account?: {
+    id: number;
+    ledgerNumber: string;
+    academicYear: string;
+  } | null;
+  totals: {
+    outstanding: number;
+    fullyPaid: number;
+    partialCount: number;
+    dueCount: number;
+  };
+  buckets: {
+    oneTime: StudentFinanceDue[];
+    monthly: StudentFinanceDue[];
+    misc: StudentFinanceDue[];
+  };
+}
+
+export interface PaymentAllocationInput {
+  dueId?: number;
+  amount: number;
+  label?: string;
+  category?: string;
+  notes?: string;
+}
+
+export interface PaymentAllocationSummary {
+  id: number;
+  paymentId: number;
+  dueId?: number | null;
+  label?: string | null;
+  category?: string | null;
+  amount: string;
+  notes?: string | null;
+}
+
+export interface RecordPaymentPayload {
+  studentId: number;
+  paymentDate: string;
+  paymentMethod: Payment['paymentMethod'];
+  referenceNumber?: string | null;
+  remarks?: string | null;
+  allocations: PaymentAllocationInput[];
+  academicYear: string;
+  verify?: boolean;
+  createdBy?: number;
+}
+
+export interface RecordPaymentResponse {
+  payment: Payment;
+  allocations: PaymentAllocationSummary[];
+  summary: StudentFinanceSummary | null;
+}
+
 export interface TransportFee {
   id: number;
   studentId: number;
   routeName: string;
   monthlyAmount: string;
-  academicYear: string;
+  academicYear?: string | null;
   startDate: string;
   endDate?: string;
   isActive: boolean;
@@ -120,7 +214,7 @@ export interface FinancialReport {
   id: number;
   reportType: string;
   reportPeriod: string;
-  academicYear: string;
+  academicYear?: string | null;
   totalExpected: string;
   totalCollected: string;
   totalOutstanding: string;
@@ -158,10 +252,14 @@ export interface DashboardStats {
 }
 
 export interface ClassCollection {
+  classId: number;
   className: string;
+  section?: string | null;
   collection: number;
   studentCount: number;
   expectedCollection?: number;
+  hostellers?: number;
+  dayScholars?: number;
   color: string;
 }
 
@@ -217,7 +315,7 @@ export interface CreateFeeStructureForm {
 export interface CreatePaymentForm {
   studentId: string;
   amount: string;
-  paymentMethod: 'cash' | 'upi' | 'bank_transfer' | 'cheque' | 'online';
+  paymentMethod: 'cash' | 'upi' | 'bank_transfer' | 'bank' | 'cheque' | 'online';
   paymentDate: string;
   referenceNumber?: string;
   remarks?: string;

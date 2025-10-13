@@ -1,12 +1,12 @@
 import { sql, relations } from "drizzle-orm";
-import { 
-  pgTable, 
-  serial, 
-  text, 
-  varchar, 
-  integer, 
-  boolean, 
-  timestamp, 
+import {
+  pgTable,
+  serial,
+  text,
+  varchar,
+  integer,
+  boolean,
+  timestamp,
   decimal,
   date,
   pgEnum,
@@ -30,6 +30,20 @@ export const teamManagerTypeEnum = pgEnum("team_manager_type", [
 ]);
 export const userTypeEnum = pgEnum("user_type", ["residential", "non_residential", "semi_residential"]);
 export const memberScopeEnum = pgEnum("member_scope", ["o_member", "i_member", "s_member"]);
+
+export const academicYears = pgTable("academic_years", {
+  code: varchar("code", { length: 20 }).primaryKey(),
+  name: varchar("name", { length: 80 }).notNull(),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  isActive: boolean("is_active").default(true).notNull(),
+  isCurrent: boolean("is_current").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  uniq_academic_years_name: uniqueIndex("uniq_academic_years_name").on(table.name),
+  idx_academic_years_current: index("idx_academic_years_current").on(table.isCurrent),
+}));
 
 // Existing users table (exactly as in your MeedianAI-Flow schema)
 export const users: any = pgTable("users", {
@@ -89,11 +103,13 @@ export const Students = pgTable("students", {
   feeStatus: varchar("fee_status", { length: 20 }).default("Pending"),
   status: varchar("status", { length: 20 }).default("active"),
   accountOpened: boolean("account_opened").default(false),
+  academicYear: varchar("academic_year", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow(),
   notes: jsonb("notes").default(JSON.stringify([])),
 }, (t) => ({
   idxClass: index("students_class_idx").on(t.classId),
   idxAdmNo: index("students_admno_idx").on(t.admissionNumber),
+  idxAcademicYear: index("idx_students_academic_year").on(t.academicYear),
 }));
 
 // Create alias for compatibility
@@ -133,7 +149,7 @@ export const paymentStatusEnum = pgEnum("payment_status", [
 export const feeStructures = pgTable("fee_structures", {
   id: serial("id").primaryKey(),
   classId: integer("class_id").notNull().references(() => Classes.id, { onDelete: "cascade" }),
-  academicYear: varchar("academic_year", { length: 20 }).notNull(),
+  academicYear: varchar("academic_year", { length: 20 }).references(() => academicYears.code, { onDelete: "restrict" }),
   feeType: feeTypeEnum("fee_type").notNull(),
   hostellerAmount: decimal("hosteller_amount", { precision: 10, scale: 2 }).notNull().default("0"),
   dayScholarAmount: decimal("day_scholar_amount", { precision: 10, scale: 2 }).notNull().default("0"),
@@ -151,7 +167,7 @@ export const studentFees = pgTable("student_fees", {
   id: serial("id").primaryKey(),
   studentId: integer("student_id").notNull().references(() => Students.id, { onDelete: "cascade" }),
   feeStructureId: integer("fee_structure_id").notNull().references(() => feeStructures.id, { onDelete: "cascade" }),
-  academicYear: varchar("academic_year", { length: 20 }).notNull(),
+  academicYear: varchar("academic_year", { length: 20 }).references(() => academicYears.code, { onDelete: "restrict" }),
   dueAmount: decimal("due_amount", { precision: 10, scale: 2 }).notNull().default("0"),
   paidAmount: decimal("paid_amount", { precision: 10, scale: 2 }).notNull().default("0"),
   pendingAmount: decimal("pending_amount", { precision: 10, scale: 2 }).notNull().default("0"),
@@ -169,6 +185,7 @@ export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
   studentId: integer("student_id").notNull().references(() => Students.id, { onDelete: "cascade" }),
   studentFeeId: integer("student_fee_id").references(() => studentFees.id, { onDelete: "set null" }),
+  academicYear: varchar("academic_year", { length: 20 }).references(() => academicYears.code, { onDelete: "restrict" }),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   paymentMethod: paymentMethodEnum("payment_method").notNull(),
   transactionId: varchar("transaction_id", { length: 100 }),
@@ -190,7 +207,7 @@ export const transportFees = pgTable("transport_fees", {
   studentId: integer("student_id").notNull().references(() => Students.id, { onDelete: "cascade" }),
   routeName: varchar("route_name", { length: 100 }).notNull(),
   monthlyAmount: decimal("monthly_amount", { precision: 10, scale: 2 }).notNull(),
-  academicYear: varchar("academic_year", { length: 20 }).notNull(),
+  academicYear: varchar("academic_year", { length: 20 }).references(() => academicYears.code, { onDelete: "restrict" }),
   effectiveDate: date("effective_date").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -202,7 +219,7 @@ export const transportFees = pgTable("transport_fees", {
 export const financialReports = pgTable("financial_reports", {
   id: serial("id").primaryKey(),
   reportType: varchar("report_type", { length: 50 }).notNull(),
-  academicYear: varchar("academic_year", { length: 20 }).notNull(),
+  academicYear: varchar("academic_year", { length: 20 }).references(() => academicYears.code, { onDelete: "restrict" }),
   classId: integer("class_id").references(() => Classes.id),
   reportData: jsonb("report_data").notNull(),
   generatedBy: integer("generated_by").notNull().references(() => users.id),
@@ -242,6 +259,11 @@ export const insertFeeStructureSchema = createInsertSchema(feeStructures).omit({
   updatedAt: true,
 });
 
+export const insertAcademicYearSchema = createInsertSchema(academicYears).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertStudentFeeSchema = createInsertSchema(studentFees).omit({
   id: true,
   createdAt: true,
@@ -277,6 +299,8 @@ export type Student = typeof Students.$inferSelect;
 export type InsertStudent = z.infer<typeof insertStudentSchema>;
 export type FeeStructure = typeof feeStructures.$inferSelect;
 export type InsertFeeStructure = z.infer<typeof insertFeeStructureSchema>;
+export type AcademicYear = typeof academicYears.$inferSelect;
+export type InsertAcademicYear = z.infer<typeof insertAcademicYearSchema>;
 export type StudentFee = typeof studentFees.$inferSelect;
 export type InsertStudentFee = z.infer<typeof insertStudentFeeSchema>;
 export type Payment = typeof payments.$inferSelect;

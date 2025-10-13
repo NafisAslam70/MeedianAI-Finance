@@ -11,9 +11,11 @@ import Classes from "@/pages/classes";
 import FeeManagement from "@/pages/fee-management";
 import Transport from "@/pages/transport";
 import Payments from "@/pages/payments";
+import Dues from "@/pages/dues";
 import ExcelImport from "@/pages/excel-import";
 import Reports from "@/pages/reports";
 import NotFound from "@/pages/not-found";
+import { FinancePeriodProvider } from "@/context/FinancePeriodContext";
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -38,6 +40,7 @@ function Router() {
       <Route path="/fee-management" component={() => <Layout><FeeManagement /></Layout>} />
       <Route path="/transport" component={() => <Layout><Transport /></Layout>} />
       <Route path="/payments" component={() => <Layout><Payments /></Layout>} />
+      <Route path="/dues" component={() => <Layout><Dues /></Layout>} />
       <Route path="/excel-import" component={() => <Layout><ExcelImport /></Layout>} />
       <Route path="/reports" component={() => <Layout><Reports /></Layout>} />
       <Route component={NotFound} />
@@ -49,8 +52,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <FinancePeriodProvider>
+          <Toaster />
+          <Router />
+        </FinancePeriodProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

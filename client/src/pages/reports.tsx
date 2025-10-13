@@ -10,33 +10,38 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import TrendChart from "@/components/charts/TrendChart";
+import { useFinancePeriod } from "@/context/FinancePeriodContext";
 
 export default function Reports() {
   const [selectedPeriod, setSelectedPeriod] = useState("monthly");
-  const [selectedYear, setSelectedYear] = useState("2023-24");
+  const { year: activeYear, years, setYear: setActiveYear } = useFinancePeriod();
   const [dateRange, setDateRange] = useState<{from?: Date, to?: Date}>({
     from: new Date(2023, 3, 1), // April 1, 2023
     to: new Date()
   });
 
   const { data: dashboardStats, isLoading: statsLoading } = useQuery({
-    queryKey: ["/api/dashboard/stats", selectedYear],
-    queryFn: () => fetch(`/api/dashboard/stats?academicYear=${selectedYear}`).then(res => res.json()),
+    queryKey: ["/api/dashboard/stats", activeYear],
+    queryFn: () => fetch(`/api/dashboard/stats?academicYear=${encodeURIComponent(activeYear)}`).then(res => res.json()),
+    enabled: Boolean(activeYear),
   });
 
   const { data: classCollections, isLoading: collectionsLoading } = useQuery({
-    queryKey: ["/api/dashboard/class-collections", selectedYear],
-    queryFn: () => fetch(`/api/dashboard/class-collections?academicYear=${selectedYear}`).then(res => res.json()),
+    queryKey: ["/api/dashboard/class-collections", activeYear],
+    queryFn: () => fetch(`/api/dashboard/class-collections?academicYear=${encodeURIComponent(activeYear)}`).then(res => res.json()),
+    enabled: Boolean(activeYear),
   });
 
   const { data: feeStructureOverview, isLoading: overviewLoading } = useQuery({
-    queryKey: ["/api/dashboard/fee-structure-overview", selectedYear],
-    queryFn: () => fetch(`/api/dashboard/fee-structure-overview?academicYear=${selectedYear}`).then(res => res.json()),
+    queryKey: ["/api/dashboard/fee-structure-overview", activeYear],
+    queryFn: () => fetch(`/api/dashboard/fee-structure-overview?academicYear=${encodeURIComponent(activeYear)}`).then(res => res.json()),
+    enabled: Boolean(activeYear),
   });
 
   const { data: collectionTrend, isLoading: trendLoading } = useQuery({
-    queryKey: ["/api/dashboard/collection-trend", selectedYear],
-    queryFn: () => fetch(`/api/dashboard/collection-trend?academicYear=${selectedYear}`).then(res => res.json()),
+    queryKey: ["/api/dashboard/collection-trend", activeYear],
+    queryFn: () => fetch(`/api/dashboard/collection-trend?academicYear=${encodeURIComponent(activeYear)}`).then(res => res.json()),
+    enabled: Boolean(activeYear),
   });
 
   const formatCurrency = (amount: number) => {
@@ -56,6 +61,29 @@ export default function Reports() {
     // TODO: Implement Excel export
     console.log('Generating Excel report...');
   };
+
+  const sortedYears = [...years].sort((a, b) => {
+    if (a.isCurrent && !b.isCurrent) return -1;
+    if (!a.isCurrent && b.isCurrent) return 1;
+    return b.code.localeCompare(a.code);
+  });
+
+  const handleYearChange = (value: string) => {
+    setActiveYear(value);
+  };
+
+  if (!activeYear) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground" data-testid="text-page-title">Financial Reports</h2>
+            <p className="text-muted-foreground">Select an academic year to view reports.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (statsLoading || collectionsLoading || overviewLoading || trendLoading) {
     return (
@@ -96,14 +124,16 @@ export default function Reports() {
           <p className="text-muted-foreground">Comprehensive financial analytics and reporting</p>
         </div>
         <div className="flex items-center space-x-4">
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
+          <Select value={activeYear} onValueChange={handleYearChange}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="2023-24">Academic Year 2023-24</SelectItem>
-              <SelectItem value="2022-23">Academic Year 2022-23</SelectItem>
-              <SelectItem value="2024-25">Academic Year 2024-25</SelectItem>
+              {sortedYears.map((year) => (
+                <SelectItem key={year.code} value={year.code}>
+                  {year.name || year.code}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>

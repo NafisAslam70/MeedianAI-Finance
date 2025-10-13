@@ -10,17 +10,43 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import PaymentForm from "@/components/forms/PaymentForm";
+import { cn } from "@/lib/utils";
+import { useFinancePeriod } from "@/context/FinancePeriodContext";
+import type { RecordPaymentResponse } from "@/lib/types";
+
+type PaymentReceiptStudent = {
+  id: number;
+  name: string;
+  admissionNumber?: string | null;
+  guardianName?: string | null;
+  isHosteller?: boolean | null;
+  className?: string | null;
+  classSection?: string | null;
+};
+
+type PaymentReceiptResponse = RecordPaymentResponse & {
+  student?: PaymentReceiptStudent;
+};
 
 export default function Payments() {
   const [selectedTab, setSelectedTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
+  const [receiptLoadingId, setReceiptLoadingId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { year: activeAcademicYear } = useFinancePeriod();
 
   const { data: payments, isLoading: paymentsLoading } = useQuery({
-    queryKey: ["/api/payments"],
+    queryKey: ["/api/payments", activeAcademicYear],
+    queryFn: async () => {
+      const response = await apiRequest(
+        "GET",
+        `/api/payments?academicYear=${encodeURIComponent(activeAcademicYear)}`,
+      );
+      return response.json();
+    },
   });
 
   const verifyMutation = useMutation({
@@ -82,17 +108,340 @@ export default function Payments() {
     return variants[method as keyof typeof variants] || 'bg-muted text-muted-foreground';
   };
 
+  const toTitleCase = (value?: string | null) => {
+    if (!value) return "";
+    return value
+      .replace(/_/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (match) => match.toUpperCase());
+  };
+
+  const getClassLabel = (student?: PaymentReceiptStudent) => {
+    if (!student?.className) {
+      return "No class assigned";
+    }
+    const base = student.className.toLowerCase().startsWith("class")
+      ? student.className
+      : `Class ${student.className}`;
+    const section = student.classSection ? ` - ${student.classSection}` : "";
+    return `${base}${section}`;
+  };
+
+  const getStudentTypeLabel = (student?: PaymentReceiptStudent) => {
+    if (!student) return "";
+    return student.isHosteller ? "Hosteller" : "Day Scholar";
+  };
+
+  const openReceiptWindow = (receipt: PaymentReceiptResponse) => {
+    if (typeof window === "undefined") return;
+
+    const receiptWindow = window.open("", "_blank", "width=720,height=900");
+    if (!receiptWindow) return;
+
+    const payment = receipt.payment;
+    const student = receipt.student;
+    const paymentDate = payment.paymentDate
+      ? new Date(payment.paymentDate).toLocaleString("en-IN", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        })
+      : new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+    const reference = (payment as any).referenceNumber ?? payment.transactionId ?? "N/A";
+
+    const classLabel = getClassLabel(student);
+    const typeLabel = getStudentTypeLabel(student);
+    const guardianLine = student?.guardianName ? `Parent: ${student.guardianName}` : "";
+
+    const fallbackStudentLines = [
+      (payment as any).studentName ?? "",
+      (payment as any).className ?? "",
+    ]
+      .filter(Boolean)
+      .map((line: string) => `<div>${line}</div>`) 
+      .join("");
+
+    const studentDetailsHtml = student
+      ? [
+          student.name,
+          classLabel,
+          typeLabel,
+          student.admissionNumber ? `Admission #${student.admissionNumber}` : "",
+          guardianLine,
+        ]
+          .filter(Boolean)
+          .map((line) => `<div>${line}</div>`)
+          .join("") || fallbackStudentLines
+      : fallbackStudentLines || '<div>Student information unavailable</div>';
+
+    const allocationRows = receipt.allocations.length
+      ? receipt.allocations
+          .map(
+            (allocation, index) => `
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;">${index + 1}</td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${allocation.label ?? allocation.category ?? "Fee"}</td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${formatCurrency(allocation.amount)}</td>
+          </tr>
+        `,
+          )
+          .join("")
+      : `<tr><td colspan="3" style="padding:12px;text-align:center;color:#6b7280;">No fee components recorded for this payment.</td></tr>`;
+
+    const receiptHtml = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Meed Public School - Payment Receipt #${payment.id}</title>
+    <style>
+      body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 24px; color: #111827; }
+      h1 { font-size: 20px; margin-bottom: 4px; }
+      .muted { color: #6b7280; font-size: 12px; }
+      .section { margin-top: 24px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th { text-align: left; padding: 8px; border-bottom: 1px solid #d1d5db; background: #f9fafb; font-size: 12px; }
+      td { font-size: 13px; }
+      .total { font-size: 16px; font-weight: 600; text-align: right; padding-top: 16px; }
+      .stamp { border: 2px solid #1f2937; padding: 16px 32px; border-radius: 12px; display: inline-block; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+      .stamp span { display: block; font-size: 12px; font-weight: 400; margin-top: 4px; letter-spacing: normal; }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Meed Public School - Payment Receipt</h1>
+      <div class="muted">Receipt #: ${payment.id} - Generated on ${new Date().toLocaleString("en-IN")}</div>
+    </div>
+
+    <div class="section">
+      <h2 style="font-size:16px;margin-bottom:4px;">Student Details</h2>
+      <div class="muted">${studentDetailsHtml}</div>
+    </div>
+
+    <div class="section">
+      <h2 style="font-size:16px;margin-bottom:4px;">Payment Information</h2>
+      <div class="muted">
+        <div>Amount Paid: <strong>${formatCurrency(payment.amount)}</strong></div>
+        <div>Payment Method: ${toTitleCase(payment.paymentMethod)}</div>
+        <div>Payment Date: ${paymentDate}</div>
+        <div>Reference: ${reference}</div>
+        <div>Remarks: ${payment.remarks ?? "N/A"}</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:60px;text-align:center;">S/N</th>
+            <th>Fee Component</th>
+            <th style="text-align:right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${allocationRows}
+        </tbody>
+      </table>
+      <div class="total">Total Paid: ${formatCurrency(payment.amount)}</div>
+    </div>
+
+    <div class="section" style="display:flex;justify-content:flex-end;">
+      <div class="stamp">
+        Meed Public School
+        <span>Authorised Stamp</span>
+      </div>
+    </div>
+  </body>
+</html>`;
+
+    receiptWindow.document.write(receiptHtml);
+    receiptWindow.document.close();
+    receiptWindow.focus();
+    setTimeout(() => {
+      receiptWindow.print();
+      receiptWindow.close();
+    }, 400);
+  };
+
+  const openReceipt = async (paymentRow: any) => {
+    const paymentId = paymentRow?.id;
+    if (!paymentId) {
+      toast({ title: "Unable to open receipt", description: "Missing payment identifier." });
+      return;
+    }
+
+    try {
+      setReceiptLoadingId(paymentId);
+      const response = await fetch(`/api/payments/${paymentId}/receipt`, {
+        credentials: "include",
+      });
+      const rawBody = await response.text();
+
+      if (!response.ok) {
+        const message = rawBody || `Unable to load receipt (status ${response.status})`;
+        throw new Error(message);
+      }
+
+      const data: PaymentReceiptResponse = JSON.parse(rawBody);
+      openReceiptWindow(data);
+    } catch (error: any) {
+      const message = error?.message || "Unable to load full receipt.";
+      toast({
+        title: "Showing summary receipt",
+        description: `${message} Displaying a simplified receipt instead.`,
+      });
+
+      const amountNumber = typeof paymentRow.amount === 'number'
+        ? paymentRow.amount
+        : parseFloat(paymentRow.amount ?? '0');
+
+      const fallbackPayment = {
+        id: paymentRow.id,
+        studentId: paymentRow.studentId,
+        studentFeeId: paymentRow.studentFeeId ?? undefined,
+        amount: Number.isFinite(amountNumber) ? amountNumber.toFixed(2) : '0.00',
+        paymentMethod: paymentRow.paymentMethod,
+        paymentDate: paymentRow.paymentDate,
+        transactionId: paymentRow.referenceNumber ?? undefined,
+        referenceNumber: paymentRow.referenceNumber ?? undefined,
+        remarks: paymentRow.remarks ?? undefined,
+        status: paymentRow.status ?? 'pending',
+        verifiedBy: paymentRow.verifiedBy ?? undefined,
+        verifiedAt: paymentRow.verifiedAt ?? undefined,
+        createdBy: paymentRow.createdBy ?? 1,
+        createdAt: paymentRow.createdAt ?? new Date().toISOString(),
+        receiptUrl: null,
+      } as RecordPaymentResponse['payment'];
+
+      const fallbackStudent: PaymentReceiptStudent | undefined = paymentRow.studentName
+        ? {
+            id: paymentRow.studentId,
+            name: paymentRow.studentName,
+            admissionNumber: paymentRow.studentAdmissionNumber ?? null,
+            guardianName: paymentRow.studentGuardianName ?? null,
+            isHosteller: paymentRow.studentIsHosteller ?? null,
+            className: paymentRow.classRawName ?? paymentRow.className ?? null,
+            classSection: paymentRow.classSection ?? null,
+          }
+        : undefined;
+
+      openReceiptWindow({
+        payment: fallbackPayment,
+        allocations: [],
+        student: fallbackStudent,
+        summary: null,
+      });
+    } finally {
+      setReceiptLoadingId(null);
+    }
+  };
+
+  const renderPaymentRow = (payment: any, index: number) => {
+    const isRowLoading = receiptLoadingId === payment.id;
+    const initials = payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2) || "--";
+
+    return (
+      <tr
+        key={payment.id}
+        className={cn(
+          "border-b border-border hover:bg-muted/50 cursor-pointer transition",
+          isRowLoading && "opacity-60 pointer-events-none"
+        )}
+        data-testid={`row-payment-${payment.id}`}
+        onClick={() => openReceipt(payment)}
+      >
+        <td className="py-3 px-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+              <span className="text-xs font-medium text-primary">
+                {initials}
+              </span>
+            </div>
+            <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
+              {payment.studentName}
+            </span>
+          </div>
+        </td>
+        <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
+          {payment.className}
+        </td>
+        <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
+          {formatCurrency(payment.amount)}
+        </td>
+        <td className="py-3 px-4">
+          <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
+            {payment.paymentMethod?.replace('_', ' ')}
+          </Badge>
+        </td>
+        <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
+          {payment.referenceNumber || '-'}
+        </td>
+        <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
+          {formatDate(payment.paymentDate)}
+        </td>
+        <td className="py-3 px-4">
+          <Badge className={getStatusBadge(payment.status)} data-testid={`badge-status-${index}`}>
+            {payment.status}
+          </Badge>
+        </td>
+        <td className="py-3 px-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {payment.status === 'pending' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleVerifyPayment(payment.id);
+                }}
+                disabled={verifyMutation.isPending}
+                data-testid={`button-verify-payment-${payment.id}`}
+              >
+                {verifyMutation.isPending ? 'Verifying…' : 'Verify'}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(event) => {
+                event.stopPropagation();
+                openReceipt(payment);
+              }}
+              disabled={isRowLoading}
+              data-testid={`button-view-payment-${payment.id}`}
+            >
+              {isRowLoading ? 'Opening…' : 'View Receipt'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(event) => {
+                event.stopPropagation();
+                toast({ title: 'Edit coming soon', description: 'Payment editing will be available shortly.' });
+              }}
+              data-testid={`button-edit-payment-${payment.id}`}
+            >
+              Edit
+            </Button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   const filteredPayments = payments?.filter((payment: any) => {
     const matchesSearch = payment.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           payment.referenceNumber?.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesStatus = selectedStatus === 'all' || payment.status === selectedStatus;
-    
-    const matchesTab = selectedTab === 'all' || 
-                      (selectedTab === 'verified' && payment.status === 'verified') ||
-                      (selectedTab === 'pending' && payment.status === 'pending') ||
-                      (selectedTab === 'recent' && new Date(payment.paymentDate) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-    
+
+    const hostellerValue = payment.studentIsHosteller;
+    const isHosteller = hostellerValue === true
+      || hostellerValue === 'true'
+      || hostellerValue === 't'
+      || hostellerValue === 1
+      || hostellerValue === '1';
+    const matchesTab = selectedTab === 'all'
+      || (selectedTab === 'dayscholar' && !isHosteller)
+      || (selectedTab === 'hosteller' && isHosteller)
+      || (selectedTab === 'recent' && new Date(payment.paymentDate) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+
     return matchesSearch && matchesStatus && matchesTab;
   });
 
@@ -230,8 +579,8 @@ export default function Payments() {
             <div className="flex items-center justify-between">
               <TabsList>
                 <TabsTrigger value="all" data-testid="tab-all">All Payments</TabsTrigger>
-                <TabsTrigger value="pending" data-testid="tab-pending">Pending</TabsTrigger>
-                <TabsTrigger value="verified" data-testid="tab-verified">Verified</TabsTrigger>
+                <TabsTrigger value="dayscholar" data-testid="tab-dayscholar">Day Scholars</TabsTrigger>
+                <TabsTrigger value="hosteller" data-testid="tab-hosteller">Hostellers</TabsTrigger>
                 <TabsTrigger value="recent" data-testid="tab-recent">Recent</TabsTrigger>
               </TabsList>
               <div className="flex items-center space-x-4">
@@ -284,79 +633,18 @@ export default function Payments() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredPayments.map((payment: any, index: number) => (
-                        <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                                <span className="text-xs font-medium text-primary">
-                                  {payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                                </span>
-                              </div>
-                              <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
-                                {payment.studentName}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
-                            {payment.className}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
-                            {formatCurrency(payment.amount)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
-                              {payment.paymentMethod?.replace('_', ' ')}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
-                            {payment.referenceNumber || '-'}
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
-                            {formatDate(payment.paymentDate)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge className={getStatusBadge(payment.status)} data-testid={`badge-status-${index}`}>
-                              {payment.status}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-2">
-                              {payment.status === 'pending' && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleVerifyPayment(payment.id)}
-                                  disabled={verifyMutation.isPending}
-                                  data-testid={`button-verify-payment-${payment.id}`}
-                                >
-                                  <i className="fas fa-check text-secondary"></i>
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="sm" data-testid={`button-view-payment-${payment.id}`}>
-                                <i className="fas fa-eye text-primary"></i>
-                              </Button>
-                              <Button variant="ghost" size="sm" data-testid={`button-edit-payment-${payment.id}`}>
-                                <i className="fas fa-edit text-muted-foreground"></i>
-                              </Button>
-                              <Button variant="ghost" size="sm" data-testid={`button-receipt-payment-${payment.id}`}>
-                                <i className="fas fa-receipt text-accent"></i>
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredPayments.map((payment: any, index: number) => renderPaymentRow(payment, index))}
                     </tbody>
                   </table>
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="pending" className="mt-0">
+            <TabsContent value="dayscholar" className="mt-0">
               {!filteredPayments || filteredPayments.length === 0 ? (
                 <div className="flex items-center justify-center h-64 bg-muted/50 rounded-lg">
                   <div className="text-center">
                     <i className="fas fa-credit-card text-4xl text-muted-foreground mb-3"></i>
-                    <p className="text-muted-foreground">No pending payments found</p>
+                    <p className="text-muted-foreground">No day scholar payments found</p>
                   </div>
                 </div>
               ) : (
@@ -370,70 +658,23 @@ export default function Payments() {
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Method</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Reference</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Status</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredPayments.map((payment: any, index: number) => (
-                        <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                                <span className="text-xs font-medium text-primary">
-                                  {payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                                </span>
-                              </div>
-                              <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
-                                {payment.studentName}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
-                            {payment.className}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
-                            {formatCurrency(payment.amount)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
-                              {payment.paymentMethod?.replace('_', ' ')}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
-                            {payment.referenceNumber || '-'}
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
-                            {formatDate(payment.paymentDate)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-2">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleVerifyPayment(payment.id)}
-                                disabled={verifyMutation.isPending}
-                                data-testid={`button-verify-payment-${payment.id}`}
-                              >
-                                <i className="fas fa-check text-secondary"></i>
-                              </Button>
-                              <Button variant="ghost" size="sm" data-testid={`button-view-payment-${payment.id}`}>
-                                <i className="fas fa-eye text-primary"></i>
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredPayments.map((payment: any, index: number) => renderPaymentRow(payment, index))}
                     </tbody>
                   </table>
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="verified" className="mt-0">
+            <TabsContent value="hosteller" className="mt-0">
               {!filteredPayments || filteredPayments.length === 0 ? (
                 <div className="flex items-center justify-center h-64 bg-muted/50 rounded-lg">
                   <div className="text-center">
                     <i className="fas fa-credit-card text-4xl text-muted-foreground mb-3"></i>
-                    <p className="text-muted-foreground">No verified payments found</p>
+                    <p className="text-muted-foreground">No hosteller payments found</p>
                   </div>
                 </div>
               ) : (
@@ -447,53 +688,12 @@ export default function Payments() {
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Method</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Reference</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Status</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredPayments.map((payment: any, index: number) => (
-                        <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                                <span className="text-xs font-medium text-primary">
-                                  {payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                                </span>
-                              </div>
-                              <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
-                                {payment.studentName}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
-                            {payment.className}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
-                            {formatCurrency(payment.amount)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
-                              {payment.paymentMethod?.replace('_', ' ')}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
-                            {payment.referenceNumber || '-'}
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
-                            {formatDate(payment.paymentDate)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-2">
-                              <Button variant="ghost" size="sm" data-testid={`button-view-payment-${payment.id}`}>
-                                <i className="fas fa-eye text-primary"></i>
-                              </Button>
-                              <Button variant="ghost" size="sm" data-testid={`button-receipt-payment-${payment.id}`}>
-                                <i className="fas fa-receipt text-accent"></i>
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredPayments.map((payment: any, index: number) => renderPaymentRow(payment, index))}
                     </tbody>
                   </table>
                 </div>
@@ -523,68 +723,7 @@ export default function Payments() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredPayments.map((payment: any, index: number) => (
-                        <tr key={payment.id} className="border-b border-border hover:bg-muted/50" data-testid={`row-payment-${payment.id}`}>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                                <span className="text-xs font-medium text-primary">
-                                  {payment.studentName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                                </span>
-                              </div>
-                              <span className="font-medium text-foreground" data-testid={`text-student-name-${index}`}>
-                                {payment.studentName}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-class-${index}`}>
-                            {payment.className}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-semibold text-foreground" data-testid={`text-amount-${index}`}>
-                            {formatCurrency(payment.amount)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge className={getPaymentMethodBadge(payment.paymentMethod)} data-testid={`badge-method-${index}`}>
-                              {payment.paymentMethod?.replace('_', ' ')}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-muted-foreground" data-testid={`text-reference-${index}`}>
-                            {payment.referenceNumber || '-'}
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground" data-testid={`text-date-${index}`}>
-                            {formatDate(payment.paymentDate)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge className={getStatusBadge(payment.status)} data-testid={`badge-status-${index}`}>
-                              {payment.status}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-2">
-                              {payment.status === 'pending' && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleVerifyPayment(payment.id)}
-                                  disabled={verifyMutation.isPending}
-                                  data-testid={`button-verify-payment-${payment.id}`}
-                                >
-                                  <i className="fas fa-check text-secondary"></i>
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="sm" data-testid={`button-view-payment-${payment.id}`}>
-                                <i className="fas fa-eye text-primary"></i>
-                              </Button>
-                              <Button variant="ghost" size="sm" data-testid={`button-edit-payment-${payment.id}`}>
-                                <i className="fas fa-edit text-muted-foreground"></i>
-                              </Button>
-                              <Button variant="ghost" size="sm" data-testid={`button-receipt-payment-${payment.id}`}>
-                                <i className="fas fa-receipt text-accent"></i>
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredPayments.map((payment: any, index: number) => renderPaymentRow(payment, index))}
                     </tbody>
                   </table>
                 </div>

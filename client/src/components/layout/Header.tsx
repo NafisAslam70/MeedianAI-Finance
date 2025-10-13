@@ -1,11 +1,28 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import QuickActionModal from "@/components/modals/QuickActionModal";
+import { useFinancePeriod, FINANCE_MONTHS } from "@/context/FinancePeriodContext";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function Header() {
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const { year, years, month, setYear, setMonth } = useFinancePeriod();
+
+  const sortedYears = useMemo(() => (
+    [...years].sort((a, b) => {
+      if (a.isCurrent && !b.isCurrent) return -1;
+      if (!a.isCurrent && b.isCurrent) return 1;
+      return b.code.localeCompare(a.code);
+    })
+  ), [years]);
 
   return (
     <>
@@ -14,9 +31,34 @@ export default function Header() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-foreground" data-testid="text-page-title">Financial Dashboard</h2>
-              <p className="text-muted-foreground" data-testid="text-academic-year">Academic Year 2023-24</p>
             </div>
             <div className="flex items-center space-x-4">
+              <div className="flex items-center gap-3">
+                <Select value={year} onValueChange={setYear}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="Select year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedYears.map(item => (
+                      <SelectItem key={item.code} value={item.code}>
+                        {item.name || item.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={month} onValueChange={setMonth}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="Select month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FINANCE_MONTHS.map(item => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {/* Search */}
               <div className="relative">
                 <Input

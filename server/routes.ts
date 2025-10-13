@@ -27,11 +27,78 @@ const upload = multer({
   }
 });
 
+const paymentMethodValues = ["cash", "upi", "bank", "bank_transfer", "cheque", "online"] as const;
+
+const optionalDueId = z.preprocess(
+  (value) => (value === null || value === undefined || value === "" ? undefined : value),
+  z.coerce.number().int().positive().optional(),
+);
+
+const recordPaymentAllocationSchema = z.object({
+  dueId: optionalDueId,
+  amount: z.coerce.number().positive({ message: "Amount must be greater than zero" }),
+  label: z.string().trim().min(1).optional(),
+  category: z.string().trim().min(1).optional(),
+  notes: z.string().trim().min(1).optional(),
+}).superRefine((value, ctx) => {
+  if (!value.dueId && !(value.label || value.category || value.notes)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Provide a description for custom charges",
+      path: ["label"],
+    });
+  }
+});
+
+const recordPaymentSchema = z.object({
+  studentId: z.coerce.number().int().positive({ message: "Student is required" }),
+  paymentDate: z.string().min(1, "Payment date is required"),
+  paymentMethod: z.enum(paymentMethodValues, { message: "Invalid payment method" }),
+  referenceNumber: z.string().trim().min(1).optional(),
+  remarks: z.string().trim().min(1).optional(),
+  academicYear: z.string().trim().min(1, "Academic year is required"),
+  allocations: z.array(recordPaymentAllocationSchema).min(1, "Select at least one fee component"),
+  verify: z.boolean().optional(),
+  createdBy: z.coerce.number().int().optional(),
+});
+
+const createAcademicYearSchema = z.object({
+  code: z.string().trim().min(1, "Code is required"),
+  name: z.string().trim().min(1).optional(),
+  startDate: z.string().trim().min(1).optional(),
+  endDate: z.string().trim().min(1).optional(),
+  isActive: z.boolean().optional(),
+  isCurrent: z.boolean().optional(),
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.get("/api/academic-years", async (_req, res) => {
+    try {
+      const years = await storage.getAcademicYears();
+      res.json(years);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to load academic years" });
+    }
+  });
+
+  app.post("/api/academic-years", async (req, res) => {
+    try {
+      const payload = createAcademicYearSchema.parse(req.body ?? {});
+      const year = await storage.createAcademicYear(payload);
+      res.status(201).json(year);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: (error as any)?.message || "Failed to create academic year" });
+    }
+  });
+
   // Students endpoint
   app.get("/api/students", async (req, res) => {
     try {
-      const students = await storage.getStudents();
+      const academicYear = typeof req.query.academicYear === "string" ? req.query.academicYear : undefined;
+      const students = await storage.getStudents(academicYear);
       res.json(students);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch students" });
@@ -51,6 +118,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/students/:id/finance", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid student id" });
+      }
+
+      const academicYear = typeof req.query.academicYear === 'string' ? req.query.academicYear : undefined;
+      const summary = await storage.getStudentFinanceSummary(id, academicYear);
+
+      if (!summary) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+
+      res.json(summary);
+    } catch (error) {
+      res.status(500).json({ message: (error as any)?.message || "Failed to load student finance" });
+    }
+  });
+
   app.post("/api/students", async (req, res) => {
     try {
       const validated = insertStudentSchema.parse(req.body);
@@ -61,6 +148,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid input", errors: error.errors });
       }
       res.status(500).json({ message: "Failed to create student" });
+    }
+  });
+
+  app.patch("/api/students/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid student id" });
+      }
+
+      const updateSchema = insertStudentSchema.partial();
+      const payload = updateSchema.parse(req.body ?? {});
+      const updated = await storage.updateStudent(id, payload);
+
+      if (!updated) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update student" });
+    }
+  });
+
+  app.delete("/api/students/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid student id" });
+      }
+
+      const result = await storage.markStudentLeft(id);
+
+      if (!result) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+
+      res.json({ message: "Student marked as left", student: result });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update student status" });
+    }
+  });
+
+  app.post("/api/students/:id/open-account", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid student id" });
+      }
+
+      const bodySchema = z.object({
+        academicYear: z.string().optional(),
+        reopen: z.boolean().optional(),
+        isNewAdmission: z.boolean().optional(),
+      });
+
+      const payload = bodySchema.parse(req.body ?? {});
+      const result = await storage.openStudentAccount(id, payload);
+      res.status(201).json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      res.status(500).json({ message: (error as any)?.message || "Failed to open account" });
+    }
+  });
+
+  app.get("/api/dues", async (req, res) => {
+    const filterSchema = z.object({
+      status: z.string().optional(),
+      dueType: z.string().optional(),
+      classId: z.coerce.number().optional(),
+      studentId: z.coerce.number().optional(),
+      month: z.string().optional(),
+      academicYear: z.string().optional(),
+    });
+
+    try {
+      const filters = filterSchema.parse(req.query);
+      const dues = await storage.getStudentDues(filters);
+      res.json(dues);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid filters", errors: error.errors });
+      }
+      res.status(500).json({ message: (error as any)?.message || "Failed to fetch dues" });
     }
   });
 
@@ -139,10 +315,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const studentId = req.query.studentId ? parseInt(req.query.studentId as string) : undefined;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-      const payments = await storage.getPayments(studentId, limit);
+      const academicYear = typeof req.query.academicYear === "string" ? req.query.academicYear : undefined;
+      const payments = await storage.getPayments(studentId, limit, academicYear);
       res.json(payments);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch payments" });
+    }
+  });
+
+  app.get("/api/payments/:id/receipt", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid payment id" });
+      }
+      const result = await storage.getPaymentWithAllocations(id);
+      if (!result) {
+        return res.status(404).json({ message: "Payment not found" });
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to load payment receipt" });
+    }
+  });
+
+  app.post("/api/payments/record", async (req, res) => {
+    try {
+      const payload = recordPaymentSchema.parse(req.body ?? {});
+      const result = await storage.recordPayment({
+        studentId: payload.studentId,
+        paymentDate: payload.paymentDate,
+        paymentMethod: payload.paymentMethod,
+        referenceNumber: payload.referenceNumber ?? null,
+        remarks: payload.remarks ?? null,
+        allocations: payload.allocations.map((allocation) => ({
+          dueId: allocation.dueId,
+        amount: allocation.amount,
+        label: allocation.label,
+        category: allocation.category,
+        notes: allocation.notes,
+      })),
+        academicYear: payload.academicYear,
+        verify: payload.verify,
+        createdBy: payload.createdBy,
+      });
+
+      res.status(201).json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: (error as any)?.message || "Failed to record payment" });
     }
   });
 

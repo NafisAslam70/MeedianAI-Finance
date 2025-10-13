@@ -26,6 +26,9 @@ export default defineConfig({
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
   },
+  define: {
+    __FLOW_URL: JSON.stringify(process.env.NEXT_PUBLIC_FLOW_URL || 'https://meedian-ai-flow-v1.vercel.app/'),
+  },
   root: path.resolve(import.meta.dirname, "client"),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),

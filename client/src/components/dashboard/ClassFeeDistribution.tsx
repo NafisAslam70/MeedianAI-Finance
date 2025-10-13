@@ -3,9 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
 interface ClassCollection {
+  classId: number;
   className: string;
+  section?: string | null;
   collection: number;
   studentCount: number;
+  expectedCollection?: number;
+  hostellers?: number;
+  dayScholars?: number;
   color: string;
 }
 
@@ -62,13 +67,16 @@ export default function ClassFeeDistribution({ data }: ClassFeeDistributionProps
       <CardContent>
         <div className="space-y-4">
           {data.slice(0, 5).map((item, index) => (
-            <div key={index} className="flex items-center justify-between" data-testid={`row-class-${item.className.toLowerCase().replace(/\s+/g, '-')}`}>
+            <div key={item.classId ?? index} className="flex items-center justify-between" data-testid={`row-class-${item.classId ?? index}`}>
               <div className="flex items-center space-x-3">
                 <div 
                   className={`w-3 h-3 rounded-full`}
                   style={{ backgroundColor: item.color }}
                 ></div>
-                <span className="font-medium text-foreground">{item.className}</span>
+                <span className="font-medium text-foreground">
+                  {item.className}
+                  {item.section ? ` (${item.section})` : ''}
+                </span>
               </div>
               <div className="text-right">
                 <p className="font-mono font-semibold text-foreground" data-testid={`text-collection-${index}`}>

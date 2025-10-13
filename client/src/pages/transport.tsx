@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { z } from "zod";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useFinancePeriod } from "@/context/FinancePeriodContext";
 
 const transportFeeSchema = z.object({
   studentId: z.string().min(1, "Student is required"),
@@ -24,7 +25,7 @@ const transportFeeSchema = z.object({
 });
 
 export default function Transport() {
-  const [selectedYear, setSelectedYear] = useState("2023-24");
+  const { year: activeYear, years, setYear: setActiveYear } = useFinancePeriod();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const queryClient = useQueryClient();
@@ -33,7 +34,7 @@ export default function Transport() {
   const form = useForm<z.infer<typeof transportFeeSchema>>({
     resolver: zodResolver(transportFeeSchema),
     defaultValues: {
-      academicYear: selectedYear,
+      academicYear: activeYear,
       routeName: "",
       monthlyAmount: "",
       startDate: "",
@@ -46,8 +47,9 @@ export default function Transport() {
   });
 
   const { data: transportFees, isLoading: feesLoading } = useQuery({
-    queryKey: ["/api/transport-fees", selectedYear],
-    queryFn: () => fetch(`/api/transport-fees?academicYear=${selectedYear}`).then(res => res.json()),
+    queryKey: ["/api/transport-fees", activeYear],
+    queryFn: () => fetch(`/api/transport-fees?academicYear=${encodeURIComponent(activeYear)}`).then(res => res.json()),
+    enabled: Boolean(activeYear),
   });
 
   const createMutation = useMutation({
@@ -56,11 +58,12 @@ export default function Transport() {
         ...data,
         studentId: parseInt(data.studentId),
         monthlyAmount: data.monthlyAmount,
+        academicYear: activeYear,
       };
       return apiRequest("POST", "/api/transport-fees", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/transport-fees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-fees", activeYear] });
       setIsCreateModalOpen(false);
       form.reset();
       toast({
@@ -98,7 +101,49 @@ export default function Transport() {
     fee.routeName?.toLowerCase().includes(searchQuery.toLowerCase())
   ) : [];
 
-  if (studentsLoading || feesLoading) {
+  const isLoadingData = studentsLoading || feesLoading;
+
+  // Calculate summary stats
+  const totalTransportStudents = Array.isArray(transportFees) ? transportFees.length : 0;
+  const totalMonthlyRevenue = Array.isArray(transportFees) ? transportFees.reduce((sum: number, fee: any) => 
+    sum + parseFloat(fee.monthlyAmount || 0), 0) : 0;
+  const uniqueRoutes = Array.isArray(transportFees) ? [...new Set(transportFees.map((fee: any) => fee.routeName))].length : 0;
+
+  useEffect(() => {
+    form.reset({
+      academicYear: activeYear,
+      routeName: "",
+      monthlyAmount: "",
+      startDate: "",
+      endDate: "",
+      studentId: "",
+    });
+  }, [activeYear, form]);
+
+  const sortedYears = [...years].sort((a, b) => {
+    if (a.isCurrent && !b.isCurrent) return -1;
+    if (!a.isCurrent && b.isCurrent) return 1;
+    return b.code.localeCompare(a.code);
+  });
+
+  const handleYearChange = (value: string) => {
+    setActiveYear(value);
+  };
+
+  if (!activeYear) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground" data-testid="text-page-title">Transport Management</h2>
+            <p className="text-muted-foreground">Select an academic year to manage transport fees.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoadingData) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -130,12 +175,6 @@ export default function Transport() {
     );
   }
 
-  // Calculate summary stats
-  const totalTransportStudents = Array.isArray(transportFees) ? transportFees.length : 0;
-  const totalMonthlyRevenue = Array.isArray(transportFees) ? transportFees.reduce((sum: number, fee: any) => 
-    sum + parseFloat(fee.monthlyAmount || 0), 0) : 0;
-  const uniqueRoutes = Array.isArray(transportFees) ? [...new Set(transportFees.map((fee: any) => fee.routeName))].length : 0;
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -144,14 +183,16 @@ export default function Transport() {
           <p className="text-muted-foreground">Manage van routes and transport fees</p>
         </div>
         <div className="flex items-center space-x-4">
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
+          <Select value={activeYear} onValueChange={handleYearChange}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="2023-24">Academic Year 2023-24</SelectItem>
-              <SelectItem value="2022-23">Academic Year 2022-23</SelectItem>
-              <SelectItem value="2024-25">Academic Year 2024-25</SelectItem>
+              {sortedYears.map((year) => (
+                <SelectItem key={year.code} value={year.code}>
+                  {year.name || year.code}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>

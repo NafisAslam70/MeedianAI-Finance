@@ -3,21 +3,24 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: "fas fa-chart-line" },
+  { name: "Dues", href: "/dues", icon: "fas fa-list-check" },
+  { name: "Payments", href: "/payments", icon: "fas fa-credit-card" },
   { name: "Students", href: "/students", icon: "fas fa-users" },
   { name: "Classes", href: "/classes", icon: "fas fa-graduation-cap" },
+  { name: "Reports", href: "/reports", icon: "fas fa-chart-bar" },
   { name: "Fee Management", href: "/fee-management", icon: "fas fa-receipt" },
   { name: "Transport", href: "/transport", icon: "fas fa-bus" },
-  { name: "Payments", href: "/payments", icon: "fas fa-credit-card" },
   { name: "Excel Import", href: "/excel-import", icon: "fas fa-file-excel" },
-  { name: "Reports", href: "/reports", icon: "fas fa-chart-bar" },
 ];
 
 export default function Sidebar() {
   const [location] = useLocation();
 
   const handleFlowAppNavigation = () => {
-    // Navigate to MeedianAI-Flow app - this would be implemented based on deployment setup
-    window.location.href = "/flow"; // or appropriate URL for Flow app
+    const url = (import.meta as any).env?.VITE_FLOW_URL ||
+      (typeof window !== 'undefined' ? (window as any).__FLOW_URL : undefined) ||
+      'https://meedian-ai-flow-v1.vercel.app/';
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
