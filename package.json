@@ -7,8 +7,8 @@
     "dev": "NODE_ENV=development tsx server/index.ts",
     "dev:rootenv": "cross-env NODE_ENV=development NODE_OPTIONS='-r dotenv/config' dotenv_config_path=../.env.local tsx server/index.ts",
     "dev:rootenv:5002": "cross-env PORT=5002 NODE_ENV=development NODE_OPTIONS='-r dotenv/config' dotenv_config_path=../.env.local tsx server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "NODE_ENV=production node dist/index.js",
+    "build": "vite build && esbuild server/index.ts --platform=node --target=node18 --packages=external --bundle --format=cjs --outfile=dist/index.cjs",
+    "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push"
   },

@@ -71,7 +71,14 @@ const createAcademicYearSchema = z.object({
   isCurrent: z.boolean().optional(),
 });
 
-export async function registerRoutes(app: Express): Promise<Server> {
+type RegisterRoutesOptions = {
+  createHttpServer?: boolean;
+};
+
+export async function registerRoutes(
+  app: Express,
+  options: RegisterRoutesOptions = {},
+): Promise<Server | undefined> {
   app.get("/api/academic-years", async (_req, res) => {
     try {
       const years = await storage.getAcademicYears();
@@ -612,6 +619,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch pending actions" });
     }
   });
+
+  if (options.createHttpServer === false) {
+    return undefined;
+  }
 
   const httpServer = createServer(app);
   return httpServer;

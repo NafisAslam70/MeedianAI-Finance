@@ -1,11 +1,19 @@
-import path from 'node:path';
-import dotenv from 'dotenv';
-dotenv.config({ path: path.resolve(process.cwd(), '../.env.local') });
-import express, { type Request, Response, NextFunction } from "express";
+import path from "node:path";
+import dotenv from "dotenv";
+import express, {
+  type Request,
+  Response,
+  NextFunction,
+} from "express";
+import type { Server } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
-const app = express();
+if (process.env.NODE_ENV !== "production") {
+  dotenv.config({ path: path.resolve(process.cwd(), "../.env.local") });
+}
+
+export const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -39,8 +47,11 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  const server = await registerRoutes(app);
+async function initializeApp(): Promise<Server | undefined> {
+  const shouldCreateHttpServer = process.env.NODE_ENV !== "production";
+  const server = await registerRoutes(app, {
+    createHttpServer: shouldCreateHttpServer,
+  });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -54,28 +65,49 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  if (app.get("env") === "development" && server) {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  
-  // Configure server for Autoscale deployment compatibility
-  // Only bind to the specified port without explicit host configuration
-  // This ensures compatibility with Autoscale's single-port requirement
-  server.listen(port, () => {
-    log(`serving on port ${port}`);
-    log(`Environment: ${app.get("env")}`);
-  }).on('error', (err) => {
-    console.error('Server failed to start:', err);
-    console.error('Port:', port);
-    console.error('Error details:', err.message);
-    process.exit(1);
-  });
-})();
+  return server;
+}
+
+export const ready = initializeApp();
+
+if (process.env.NODE_ENV !== "production") {
+  ready
+    .then((server) => {
+      if (!server) {
+        throw new Error("HTTP server was not created in development mode");
+      }
+
+      // ALWAYS serve the app on the port specified in the environment variable PORT
+      // Other ports are firewalled. Default to 5000 if not specified.
+      // this serves both the API and the client.
+      // It is the only port that is not firewalled.
+      const port = parseInt(process.env.PORT || "5000", 10);
+
+      // Configure server for Autoscale deployment compatibility
+      // Only bind to the specified port without explicit host configuration
+      // This ensures compatibility with Autoscale's single-port requirement
+      server
+        .listen(port, () => {
+          log(`serving on port ${port}`);
+          log(`Environment: ${app.get("env")}`);
+        })
+        .on("error", (err) => {
+          console.error("Server failed to start:", err);
+          console.error("Port:", port);
+          console.error("Error details:", err.message);
+          process.exit(1);
+        });
+    })
+    .catch((err) => {
+      console.error("Failed to initialize server:", err);
+      process.exit(1);
+    });
+}
+
+export default app;
