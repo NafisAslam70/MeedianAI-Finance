@@ -27,7 +27,7 @@ export default defineConfig({
     },
   },
   define: {
-    __FLOW_URL: JSON.stringify(process.env.NEXT_PUBLIC_FLOW_URL || 'https://meedian-ai-flow-v1.vercel.app/'),
+    __FLOW_URL: JSON.stringify(process.env.NEXT_PUBLIC_FLOW_URL || 'https://meedian-ai-flow-v2.vercel.app/'),
   },
   root: path.resolve(import.meta.dirname, "client"),
   build: {

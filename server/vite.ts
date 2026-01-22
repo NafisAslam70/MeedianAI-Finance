@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
 import { createServer as createViteServer, createLogger } from "vite";
@@ -64,5 +64,24 @@ export async function setupVite(app: Express, server: Server) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
     }
+  });
+}
+
+export function serveStatic(app: Express) {
+  const distDir = path.resolve(import.meta.dirname, "..", "dist", "public");
+  const indexFile = path.join(distDir, "index.html");
+
+  // Serve built assets
+  app.use(express.static(distDir));
+
+  // Fallback to index.html for client-side routing
+  app.use("*", (_req, res, next) => {
+    fs.access(indexFile, fs.constants.F_OK, (err) => {
+      if (err) {
+        return next(err);
+      }
+
+      res.sendFile(indexFile);
+    });
   });
 }

@@ -85,7 +85,7 @@ Types are exported using Drizzle inference and Zod insert schemas for request va
 - `src/components/layout/Sidebar.tsx`:
   - Maintains local navigation entries.
   - “Flow” button opens Flow in a new tab:
-    - Uses `import.meta.env.VITE_FLOW_URL`, else `__FLOW_URL` defined in Vite config, else default `https://meedian-ai-flow-v1.vercel.app/`.
+    - Uses `import.meta.env.VITE_FLOW_URL`, else `__FLOW_URL` defined in Vite config, else default `https://meedian-ai-flow-v2.vercel.app/`.
 
 ### Fee Structure UI (Frontend-only)
 

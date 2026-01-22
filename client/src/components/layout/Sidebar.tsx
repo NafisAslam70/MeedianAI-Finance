@@ -19,7 +19,7 @@ export default function Sidebar() {
   const handleFlowAppNavigation = () => {
     const url = (import.meta as any).env?.VITE_FLOW_URL ||
       (typeof window !== 'undefined' ? (window as any).__FLOW_URL : undefined) ||
-      'https://meedian-ai-flow-v1.vercel.app/';
+      'https://meedian-ai-flow-v2.vercel.app/';
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
