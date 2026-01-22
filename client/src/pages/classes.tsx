@@ -321,6 +321,8 @@ export default function Classes() {
     );
   }
 
+  const classList = Array.isArray(classes) ? classes : [];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -334,7 +336,7 @@ export default function Classes() {
         </Button>
       </div>
 
-      {!classes || classes.length === 0 ? (
+      {classList.length === 0 ? (
         <Card className="finance-card">
           <CardContent className="p-12">
             <div className="text-center">
@@ -350,7 +352,7 @@ export default function Classes() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {classes.map((classItem: any) => {
+          {classList.map((classItem: any) => {
             const stats = getClassStats(classItem.id);
             const collectionPercentage = stats.expectedCollection > 0 
               ? Math.round((stats.collection / stats.expectedCollection) * 100) 
@@ -720,7 +722,7 @@ export default function Classes() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Student name *</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
+                        <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -731,7 +733,7 @@ export default function Classes() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Admission number</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
+                        <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -749,7 +751,7 @@ export default function Classes() {
                             <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {Array.isArray(classes) && (classes as any[]).map((cls: any) => (
+                            {classList.map((cls: any) => (
                               <SelectItem key={cls.id} value={cls.id.toString()}>
                                 {cls.name}{cls.section ? ` - ${cls.section}` : ''}
                               </SelectItem>
@@ -788,7 +790,7 @@ export default function Classes() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Guardian name</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
+                        <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -799,7 +801,7 @@ export default function Classes() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Guardian phone</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
+                        <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -811,7 +813,7 @@ export default function Classes() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Address</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                      <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -823,7 +825,7 @@ export default function Classes() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                         <FormControl>
-                          <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(Boolean(checked))} />
+                          <Checkbox checked={field.value ?? false} onCheckedChange={(checked) => field.onChange(Boolean(checked))} />
                         </FormControl>
                         <div className="space-y-1 leading-none">
                           <FormLabel>Hosteller</FormLabel>
@@ -838,7 +840,7 @@ export default function Classes() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                         <FormControl>
-                          <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(Boolean(checked))} />
+                          <Checkbox checked={field.value ?? false} onCheckedChange={(checked) => field.onChange(Boolean(checked))} />
                         </FormControl>
                         <div className="space-y-1 leading-none">
                           <FormLabel>Transport opted</FormLabel>
